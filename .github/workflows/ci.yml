@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests-matrix:
+    strategy:
+      fail-fast: False
+      matrix:
+        os: [ubuntu, windows]
+        python-version: [3.11, 3.12]
+
+    name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
+    runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repo's default branch
+        uses: actions/checkout@v3
+        with:
+          path: pycanha-core-python
+
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Clone pycanha-core in the same directory as pycanha-core-python
+      - name: Clone pycanha-core
+        run: git clone https://github.com/pycanha-project/pycanha-core ../pycanha-core
+        shell: bash
+
+      # Build/install pycanha-core bindings with test dependencies
+      - name: Build pycanha-core
+        run: pip install .[test]
+
+      # Run tests
+      - name: Run tests
+        run: pytest
+

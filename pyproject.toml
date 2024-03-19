@@ -1,23 +1,112 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0"]
+# For a "regular" build with scikit-build-core, you would just use:
+# build-backend = "scikit_build_core.build"
+build-backend = "prepare-build-backend" # Custom wrapper around scikit_build_core.build See comments in prepare-build-backend.py.
+backend-path = [
+    "src/pycanha_core",
+] #For in-tree builds, we need to add the directory to the path. See: https://peps.python.org/pep-0517/#in-tree-build-backends
 
 [project]
 name = "pycanha-core"
 version = "0.0.2"
-authors = [
-    { name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" },
-]
-description = "Python bindings for pycanha-coree"
+description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
+authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
 requires-python = ">=3.11"
 classifiers = [
+    #Add licence classifiers
+    #Add development status classifiers
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
 ]
+dependencies = ['numpy>=1.24.0']
 
 [project.urls]
 "Homepage" = "https://github.com/pycanha-project/pycanha-core-python"
 "Bug Tracker" = "https://github.com/pycanha-project/pycanha-core-python/issues"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.scikit-build]
+cmake.version = ">=3.25"
+ninja.version = ">=1.5"
+
+# Fallback on gmake/make if available and ninja is missing (Unix). Will only
+# fallback on platforms without a known ninja wheel.
+ninja.make-fallback = false
+
+# Extra args for CMake. Pip, unlike build, does not support lists, so semicolon
+# can be used to separate. Setting this in config or envvar will override the
+# entire list. See also cmake.define.
+cmake.args = ["--preset=conan-release", "-S src/pycanha_core"]
+
+# This activates verbose builds
+cmake.verbose = true
+
+# This controls the CMake build type
+cmake.build-type = "Release"
+
+# Display logs at or above this level.
+logging.level = "WARNING"
+
+# If set to True, try to build a reproducible distribution (Unix and Python 3.9+
+# recommended).  ``SOURCE_DATE_EPOCH`` will be used for timestamps, or a fixed
+# value if not set.
+sdist.reproducible = true
+
+# A list of packages to auto-copy into the wheel. If this is not set, it will
+# default to the first of ``src/<package>``, ``python/<package>``, or
+# ``<package>`` if they exist.  The prefix(s) will be stripped from the package
+# name inside the wheel.
+wheel.packages = ["src/pycanha_core"]
+
+# The Python tags. The default (empty string) will use the default Python
+# version. You can also set this to "cp37" to enable the CPython 3.7+ Stable ABI
+# / Limited API (only on CPython and if the version is sufficient, otherwise
+# this has no effect). Or you can set it to "py3" or "py2.py3" to ignore Python
+# ABI compatibility. The ABI tag is inferred from this tag.
+wheel.py-api = ""
+
+# Setting this to true will expand tags (universal2 will add Intel and Apple
+# Silicon tags, for pip <21.0.1 compatibility).
+wheel.expand-macos-universal-tags = false
+
+# This allows you to change the install dir, such as to the package name. The
+# original dir is still at SKBUILD_PLATLIB_DIR (also SKBUILD_DATA_DIR, etc. are
+# available)
+wheel.install-dir = "."
+
+# A list of license files to include in the wheel. Supports glob patterns.
+wheel.license-files = ["LICEN[CS]E*", "COPYING*", "NOTICE*", "AUTHORS*"]
+
+# This will backport an internal copy of FindPython if CMake is less than this
+# value. Set to 0 or the empty string to disable. The default will be kept in
+# sync with the version of FindPython stored in scikit-build-core.
+backport.find-python = "3.26.1"
+
+# Select the editable mode to use. Can be "redirect" (default) or "inplace".
+editable.mode = "redirect"
+
+# Rebuild the project when the package is imported. The build-directory must be
+# set.
+editable.rebuild = false
+
+# Display output on stderr while rebuilding on import
+editable.verbose = true
+
+# Strictly check all config options. If False, warnings will be printed for
+# unknown options. If True, an error will be raised.
+strict-config = true
+
+# The build directory. Defaults to a temporary directory, but can be set.
+build-dir = ""
+
+
+[tool.cibuildwheel]
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+test-skip = ["*universal2:arm64"]
+build-verbosity = 1
