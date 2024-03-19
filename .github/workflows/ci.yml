@@ -43,6 +43,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Install Conan
+      - name: Install Conan
+        run: pip install conan
+
+      # Generate "default" profile 
+      - name: Generate default Conan profile
+        run: conan profile new --detect default
+
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
         run: |
