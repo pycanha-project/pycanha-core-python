@@ -35,8 +35,11 @@ jobs:
         shell: bash
 
       # Build/install pycanha-core bindings with test dependencies
-      - name: Build pycanha-core
-        run: pip install .[test]
+      - name: Build pycanha-core-python
+        run: |
+          cd pycanha-core-python
+          pip install .[test]
+        shell: bash
 
       # Run tests
       - name: Run tests
