@@ -19,29 +19,40 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Check out repo's default branch
+      # Setup the directories
+      - name: Setup directories
+        run: |
+          mkdir pycanha-project
+          cd pycanha-project
+          mkdir pycanha-core pycanha-core-python
+        shell: bash
+
+      - name: Check out pycanha-core-python repo
         uses: actions/checkout@v3
         with:
-          path: pycanha-core-python
+          path: pycanha-project/pycanha-core-python
+
+      - name: Check out pycanha-core repo
+        uses: actions/checkout@v3
+        with:
+          repository: pycanha-project/pycanha-core
+          path: pycanha-project/pycanha-core
 
       - name: Setup python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Clone pycanha-core in the same directory as pycanha-core-python
-      - name: Clone pycanha-core
-        run: git clone https://github.com/pycanha-project/pycanha-core ../pycanha-core
-        shell: bash
-
-      # Build/install pycanha-core bindings with test dependencies
+      # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
         run: |
-          cd pycanha-core-python
+          cd pycanha-project/pycanha-core-python
           pip install .[test]
         shell: bash
 
       # Run tests
       - name: Run tests
-        run: pytest
-
+        run: |
+          cd pycanha-project/pycanha-core-python
+          pytest
+        shell: bash
