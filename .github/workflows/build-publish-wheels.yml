@@ -1,0 +1,115 @@
+name: Build and upload to PyPI
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      # Setup the directories
+      - name: Setup directories
+        run: |
+          mkdir pycanha-project
+          cd pycanha-project
+          mkdir pycanha-core pycanha-core-python
+        shell: bash
+
+      - name: Check out pycanha-core-python repo
+        uses: actions/checkout@v3
+        with:
+          path: pycanha-project/pycanha-core-python
+
+      - name: Check out pycanha-core repo
+        uses: actions/checkout@v3
+        with:
+          repository: pycanha-project/pycanha-core
+          path: pycanha-project/pycanha-core
+
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      # Install Conan
+      - name: Install Conan
+        run: pip install conan
+
+      # Create a 'default' profile for the current OS
+      - name: Rename conan profile file on Linux
+        if: runner.os == 'Linux'
+        run: mv pycanha-project/pycanha-core/.conan/profiles/${{ matrix.os }}-default-amd64 pycanha-project/pycanha-core/.conan/profiles/default
+
+      - name: Rename file on Windows
+        if: runner.os == 'Windows'
+        run: Rename-Item pycanha-project/pycanha-core/.conan/profiles/${{ matrix.os }}-default-amd64 default
+        shell: pwsh
+
+      # Install the conan profiles, so a correct 'default' profile is available
+      - name: Install conan profiles
+        run: |
+          conan config install pycanha-project/pycanha-core/.conan
+
+      # Build/install pycanha-core-python bindings with test dependencies
+      - name: Build pycanha-core-python
+        run: |
+          cd pycanha-project/pycanha-core-python
+          pip install .[test]
+        shell: bash
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.17.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
+
+  upload_pypi:
+    name: Publish to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    if: github.event_name == 'release' && github.event.action == 'published'
+    # or, alternatively, upload to PyPI on every tag starting with 'v' (remove on: release above to use this)
+    # if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          # unpacks all CIBW artifacts into dist/
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+            

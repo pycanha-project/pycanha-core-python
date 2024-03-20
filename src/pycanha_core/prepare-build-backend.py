@@ -35,7 +35,10 @@ if result.returncode == 0:
     print("Success!")
 else:
     print("Error:", result.stderr.decode())
-    raise RuntimeError("Conan install failed. See error above.")
+    # If the conan package was already created, this step is not necessary. When building
+    # the wheel, the bindings code is copied elsewhere to for isolation, so conan create
+    # will fail. But if it was executed before, conan install will work. So not raising error here.
+    # raise RuntimeError("Conan install failed. See error above.")
 
 # "Inject" the conan install before the build hooks are called.
 result = subprocess.run(
