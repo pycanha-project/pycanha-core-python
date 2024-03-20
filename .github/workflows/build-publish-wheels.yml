@@ -15,7 +15,13 @@ jobs:
       matrix:
         os: [ubuntu, windows]
         python-version: [3.11, 3.12]
+        include:
+          # Specify additional variables for the Ubuntu + Python 3.12 combination
+          - os: ubuntu-latest
+            python-version: 3.12
+            upload_sdist: true
 
+            # Other specific settings for Python 3.10 can be added here
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 20
@@ -65,11 +71,18 @@ jobs:
           cd pycanha-project/pycanha-core-python
           python -m build
 
+      # Upload the artifacts wheels
       - uses: actions/upload-artifact@v4
         with:
-          name: 'pycanha-dist-files'
-          path: pycanha-project/pycanha-core-python/dist/*
-          overwrite: true # To overwrite the sdist
+          name: pycanha-dist-files
+          path: pycanha-project/pycanha-core-python/dist/*.whl
+          
+      - name: Upload sdist
+        if: matrix.upload_sdist
+        uses: actions/upload-artifact@v2
+        with:
+          name: pycanha-dist-files
+          path: pycanha-project/pycanha-core-python/dist/*.tar.gz
 
   upload_pypi:
     name: Publish to PyPI
