@@ -20,8 +20,8 @@ compiler.libcxx = libstdc++11
 compiler.version = 12
 os = Linux
 
-#[buildenv]
-#CC = /usr/bin/gcc-13
-#CXX = /usr/bin/g++-13
+[buildenv]
+CC = /usr/bin/gcc-12
+CXX = /usr/bin/g++-12
 
 {% endif %}
