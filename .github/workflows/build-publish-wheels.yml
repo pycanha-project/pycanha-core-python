@@ -68,14 +68,14 @@ jobs:
       # Upload the artifacts wheels
       - uses: actions/upload-artifact@v4
         with:
-          name: pycanha-dist-files
+          name: pycanha-dist-files-${{ matrix.os }}-${{ matrix.python-version }}
           path: pycanha-project/pycanha-core-python/dist/*.whl
 
       - name: Upload sdist
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: sdist
+          name: pycanha-dist-files-sdist
           path: pycanha-project/pycanha-core-python/dist/*.tar.gz
 
   upload_pypi:
