@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0"]
+requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0, <2.2"]
 # For a "regular" build with scikit-build-core, you would just use:
 # build-backend = "scikit_build_core.build"
 build-backend = "prepare-build-backend" # Custom wrapper around scikit_build_core.build See comments in prepare-build-backend.py.

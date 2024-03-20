@@ -45,10 +45,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Install Conan
-      - name: Install Conan
-        run: pip install conan
-
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
         run: |
