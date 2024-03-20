@@ -63,7 +63,7 @@ jobs:
       - name: Build sddist and wheels
         run: |
           cd pycanha-project/pycanha-core-python
-          pip -m build
+          python -m build
 
       - uses: actions/upload-artifact@v4
         with:
