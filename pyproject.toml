@@ -29,6 +29,7 @@ dependencies = ['numpy>=1.24.0']
 
 [project.optional-dependencies]
 test = ["pytest"]
+build = ["build"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
@@ -104,9 +105,3 @@ strict-config = true
 # The build directory. Defaults to a temporary directory, but can be set.
 build-dir = ""
 
-
-[tool.cibuildwheel]
-test-command = "pytest {project}/test"
-test-extras = ["test"]
-test-skip = ["*universal2:arm64"]
-build-verbosity = 1
