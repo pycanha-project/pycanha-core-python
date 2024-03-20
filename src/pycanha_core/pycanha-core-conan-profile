@@ -21,7 +21,7 @@ compiler.version = 12
 os = Linux
 
 [buildenv]
-CC = /usr/bin/gcc-12
-CXX = /usr/bin/g++-12
+CC =gcc-12
+CXX = g++-12
 
 {% endif %}
