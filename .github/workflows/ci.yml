@@ -47,21 +47,6 @@ jobs:
       - name: Install Conan
         run: pip install conan
 
-      # Create a 'default' profile for the current OS
-      - name: Rename conan profile file on Linux
-        if: runner.os == 'Linux'
-        run: mv pycanha-project/pycanha-core/.conan/profiles/${{ matrix.os }}-default-amd64 pycanha-project/pycanha-core/.conan/profiles/default
-
-      - name: Rename file on Windows
-        if: runner.os == 'Windows'
-        run: Rename-Item pycanha-project/pycanha-core/.conan/profiles/${{ matrix.os }}-default-amd64 default
-        shell: pwsh
-
-      # Install the conan profiles, so a correct 'default' profile is available
-      - name: Install conan profiles
-        run: |
-          conan config install pycanha-project/pycanha-core/.conan
-
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
         run: |
