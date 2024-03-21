@@ -4,3 +4,4 @@ build
 CMakeUserPresets.json
 __pycache__
 dist
+src/pycanha_core/conanfile.txt
