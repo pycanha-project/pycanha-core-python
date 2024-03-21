@@ -22,6 +22,14 @@ jobs:
 
     steps:
       # Setup the directories
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install python dependencies
+        run: python -m pip install toml
+
       - name: Setup directories
         run: |
           mkdir pycanha-project
@@ -34,16 +42,21 @@ jobs:
         with:
           path: pycanha-project/pycanha-core-python
 
-      - name: Check out pycanha-core repo
+      - name: Get version from pyproject.toml and Set Environment Variable
+        run: |
+          import toml
+          pyproject = toml.load('pycanha-project/pycanha-core-python/pyproject.toml')
+          version = pyproject['project']['version']
+          print(f"::set-output name=version::{version}")
+        shell: python
+        id: get_version
+
+      - name: Check out pycanha-core repo at version
         uses: actions/checkout@v3
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
-
-      - name: Setup python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
+          ref: v${{ steps.get_version.outputs.version }}
 
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
@@ -82,21 +95,19 @@ jobs:
     name: Publish to PyPI
     needs: [build-matrix]
     runs-on: ubuntu-latest
-    environment: testpypi
+    environment: 
+      name: pypi
+      url: https://pypi.org/p/pycanha-core
     permissions:
       id-token: write
     if: github.event_name == 'release' && github.event.action == 'published'
-    # or, alternatively, upload to PyPI on every tag starting with 'v' (remove on: release above to use this)
-    # if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/download-artifact@v4
         with:
-          # unpacks all CIBW artifacts into dist/
+          # unpacks all "pycanha-dist-files" artifacts into dist/
           pattern: pycanha-dist-files*
           path: dist
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
 
