@@ -56,7 +56,7 @@ jobs:
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
-          ref: ${{ steps.get_version.outputs.version }}
+          ref: v${{ steps.get_version.outputs.version }}
 
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python
