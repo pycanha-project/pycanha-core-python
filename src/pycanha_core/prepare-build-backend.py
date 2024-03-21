@@ -16,6 +16,46 @@ if __name__ == "__main__":
 from scikit_build_core.build import *
 import subprocess
 
+# Get version of the bindings from pyproject.toml
+import toml
+
+bindings_version_str = toml.load("pyproject.toml")["project"]["version"]
+
+# Configure the binding version in conanfile.txt (of the bindings)
+with open("src/pycanha_core/conanfile.txt.in", "r") as file:
+    conanfile_txt_in = file.read()
+    conanfile_txt = conanfile_txt_in.replace(
+        "@CONFIG_PYCANHA_CORE_VERSION@", bindings_version_str
+    )
+    with open("src/pycanha_core/conanfile.txt", "w") as file:
+        file.write(conanfile_txt)
+
+
+# Check pycanha-core is available in ../pycanha-core. If available, check the version is correct.
+# Read ../pycanha-core/conanfile.py
+import re
+
+try:
+    with open("../pycanha-core/conanfile.py", "r") as file:
+        conanfile_content = file.read()
+        pycanha_core_version = re.search(
+            r'version\s*=\s*"(\d+\.\d+\.\d+)"', conanfile_content
+        )
+
+        # Check binding version is the same as pycanha-core version
+        if pycanha_core_version is None:
+            raise RuntimeError(
+                f"Could not find version in pycanha-core/conanfile.py. Required version is {bindings_version_str}"
+            )
+        if pycanha_core_version.group(1) != bindings_version_str:
+            raise RuntimeError(
+                f"Version mismatch. pycanha-core version is {pycanha_core_version.group(1)}, but bindings version is {bindings_version_str}"
+            )
+
+except FileNotFoundError:
+    # Same as with conan create, if the package was already created, this step is not necessary.
+    pass
+
 
 result = subprocess.run(
     [
