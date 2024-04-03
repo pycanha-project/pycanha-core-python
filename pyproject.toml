@@ -30,6 +30,7 @@ dependencies = ['numpy>=1.24.0']
 [project.optional-dependencies]
 test = ["pytest"]
 build = ["build"]
+docs = ["sphinx", "myst-parser", "sphinx-autoapi"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"

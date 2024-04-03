@@ -5,3 +5,6 @@ CMakeUserPresets.json
 __pycache__
 dist
 src/pycanha_core/conanfile.txt
+docs/_*
+docs/make.bat
+docs/Makefile
