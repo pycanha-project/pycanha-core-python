@@ -46,7 +46,7 @@ jobs:
         run: |
           import toml
           pyproject = toml.load('pycanha-project/pycanha-core-python/pyproject.toml')
-          version = pyproject['project']['version']
+          version = ".".join(pyproject['project']['version'].split(".")[:2])
           print(f"::set-output name=version::{version}")
         shell: python
         id: get_version
