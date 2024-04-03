@@ -19,7 +19,8 @@ import subprocess
 # Get version of the bindings from pyproject.toml
 import toml
 
-bindings_version_str = toml.load("pyproject.toml")["project"]["version"]
+pyproject = toml.load("pyproject.toml")
+bindings_version_str = ".".join(pyproject["project"]["version"].split(".")[:2])
 
 # Configure the binding version in conanfile.txt (of the bindings)
 with open("src/pycanha_core/conanfile.txt.in", "r") as file:
@@ -39,7 +40,7 @@ try:
     with open("../pycanha-core/conanfile.py", "r") as file:
         conanfile_content = file.read()
         pycanha_core_version = re.search(
-            r'version\s*=\s*"(\d+\.\d+\.\d+)"', conanfile_content
+            r'version\s*=\s*"(\d+\.\d+)"', conanfile_content
         )
 
         # Check binding version is the same as pycanha-core version

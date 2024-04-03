@@ -9,7 +9,7 @@ backend-path = [
 
 [project]
 name = "pycanha-core"
-version = "0.0.3"
+version = "0.1.0"
 description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
