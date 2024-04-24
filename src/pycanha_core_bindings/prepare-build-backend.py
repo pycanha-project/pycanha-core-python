@@ -23,12 +23,12 @@ pyproject = toml.load("pyproject.toml")
 bindings_version_str = ".".join(pyproject["project"]["version"].split(".")[:2])
 
 # Configure the binding version in conanfile.txt (of the bindings)
-with open("src/pycanha_core/conanfile.txt.in", "r") as file:
+with open("src/pycanha_core_bindings/conanfile.txt.in", "r") as file:
     conanfile_txt_in = file.read()
     conanfile_txt = conanfile_txt_in.replace(
         "@CONFIG_PYCANHA_CORE_VERSION@", bindings_version_str
     )
-    with open("src/pycanha_core/conanfile.txt", "w") as file:
+    with open("src/pycanha_core_bindings/conanfile.txt", "w") as file:
         file.write(conanfile_txt)
 
 
@@ -64,8 +64,8 @@ result = subprocess.run(
         "create",
         "../pycanha-core",
         "--build=missing",
-        "-pr:h=src/pycanha_core/pycanha-core-conan-profile",
-        "-pr:b=src/pycanha_core/pycanha-core-conan-profile",
+        "-pr:h=src/pycanha_core_bindings/pycanha-core-conan-profile",
+        "-pr:b=src/pycanha_core_bindings/pycanha-core-conan-profile",
     ],
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -84,10 +84,10 @@ result = subprocess.run(
     [
         "conan",
         "install",
-        "src/pycanha_core",
+        "src/pycanha_core_bindings",
         "--build=missing",
-        "-pr:h=src/pycanha_core/pycanha-core-conan-profile",
-        "-pr:b=src/pycanha_core/pycanha-core-conan-profile",
+        "-pr:h=src/pycanha_core_bindings/pycanha-core-conan-profile",
+        "-pr:b=src/pycanha_core_bindings/pycanha-core-conan-profile",
     ],
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
