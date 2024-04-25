@@ -1,0 +1,22 @@
+[requires]
+pycanha-core/0.1
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout
+
+[options]
+pycanha-core*:PYCANHA_OPTION_LIBRARY = True
+pycanha-core*:PYCANHA_OPTION_LTO = True
+pycanha-core*:PYCANHA_OPTION_DOCS = False
+pycanha-core*:PYCANHA_OPTION_WARNINGS = False
+pycanha-core*:PYCANHA_OPTION_WARNINGS_AS_ERRORS = False
+pycanha-core*:PYCANHA_OPTION_COVERAGE = False
+pycanha-core*:PYCANHA_OPTION_INCLUDE_WHAT_YOU_USE = False
+pycanha-core*:PYCANHA_OPTION_CLANG_TIDY = False
+pycanha-core*:PYCANHA_OPTION_CPPCHECK = False
+pycanha-core*:PYCANHA_OPTION_SANITIZE_ADDR = False
+pycanha-core*:PYCANHA_OPTION_SANITIZE_UNDEF = False

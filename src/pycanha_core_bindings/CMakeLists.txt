@@ -12,12 +12,12 @@ find_package(pybind11 CONFIG REQUIRED)
 find_package(pycanha-core CONFIG REQUIRED)
 
 
-pybind11_add_module(pycanha_core MODULE 
+pybind11_add_module(pycanha_core_cpp MODULE 
     pycanha-core-wrapper.cpp
 )
 
-target_link_libraries(pycanha_core PRIVATE pycanha-core::pycanha-core)
-target_compile_definitions(pycanha_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
+target_link_libraries(pycanha_core_cpp PRIVATE pycanha-core::pycanha-core)
+target_compile_definitions(pycanha_core_cpp PRIVATE VERSION_INFO=${PROJECT_VERSION})
 
-install(TARGETS pycanha_core DESTINATION pycanha_core)
+install(TARGETS pycanha_core_cpp DESTINATION pycanha_core)
 

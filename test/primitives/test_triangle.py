@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
 
-# Assuming `pycanha_core` is the module where Triangle and related classes are defined
-from pycanha_core import Triangle
+import pycanha_core
+
+Triangle = pycanha_core.gmm.Triangle
 
 
 @pytest.fixture

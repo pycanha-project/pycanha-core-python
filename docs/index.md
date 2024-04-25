@@ -10,7 +10,7 @@ Welcome to the My Project documentation.
    :maxdepth: 1
 
    installation
-   autoapi/pycanha_core/pycanha_core/index
+   modules
 
 ```
 

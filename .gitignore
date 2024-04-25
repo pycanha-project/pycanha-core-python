@@ -8,3 +8,4 @@ src/pycanha_core/conanfile.txt
 docs/_*
 docs/make.bat
 docs/Makefile
+docs/pycanha_core

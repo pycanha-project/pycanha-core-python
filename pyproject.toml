@@ -4,12 +4,12 @@ requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0, !=2.2.0"
 # build-backend = "scikit_build_core.build"
 build-backend = "prepare-build-backend" # Custom wrapper around scikit_build_core.build See comments in prepare-build-backend.py.
 backend-path = [
-    "src/pycanha_core",
+    "src/pycanha_core_bindings",
 ] #For in-tree builds, we need to add the directory to the path. See: https://peps.python.org/pep-0517/#in-tree-build-backends
 
 [project]
 name = "pycanha-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
@@ -43,7 +43,7 @@ ninja.make-fallback = false
 # Extra args for CMake. Pip, unlike build, does not support lists, so semicolon
 # can be used to separate. Setting this in config or envvar will override the
 # entire list. See also cmake.define.
-cmake.args = ["--preset=conan-release", "-S src/pycanha_core"]
+cmake.args = ["--preset=conan-release", "-S src/pycanha_core_bindings"]
 
 # This activates verbose builds
 cmake.verbose = true
