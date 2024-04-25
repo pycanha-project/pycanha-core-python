@@ -19,7 +19,7 @@ using namespace pycanha;
 
 using namespace gmm;
 
-PYBIND11_MODULE(pycanha_core, m) {
+PYBIND11_MODULE(pycanha_core_cpp, m) {
   py::module gmm_submodule = m.def_submodule("gmm", "Geometry submodule");
 
   Primitive_b(gmm_submodule);

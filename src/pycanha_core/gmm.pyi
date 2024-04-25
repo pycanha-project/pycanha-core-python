@@ -2,16 +2,18 @@ import numpy as np
 
 class Point3D(np.ndarray):
     """A 3D point represented as a numpy array of floats."""
+
     pass
 
 class Vector3D(np.ndarray):
     """A 3D vector represented as a numpy array of floats."""
+
     pass
 
 class Point2D(np.ndarray):
     """A 2D point represented as a numpy array of floats."""
-    pass
 
+    pass
 
 class Triangle:
     """A class representing a triangle in 3D space."""
@@ -203,7 +205,15 @@ class Quadrilateral:
 class Cylinder:
     """A class representing a cylinder in 3D space."""
 
-    def __init__(self, p1: Point3D, p2: Point3D, p3: Point3D, radius: float, start_angle: float, end_angle: float) -> None:
+    def __init__(
+        self,
+        p1: Point3D,
+        p2: Point3D,
+        p3: Point3D,
+        radius: float,
+        start_angle: float,
+        end_angle: float,
+    ) -> None:
         """Constructs a cylinder with the three vertices and additional parameters."""
         pass
 
@@ -283,3 +293,5 @@ class Cylinder:
         """Maps a point from the 2D space of the cylinder to 3D space."""
         pass
 
+# Remove foreign packages from the namespace
+del np
