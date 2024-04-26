@@ -78,6 +78,27 @@ jobs:
           cd pycanha-project/pycanha-core-python
           python -m build
 
+      # Repair wheel with auditwheel (only for Ubuntu)
+      - name: Repair wheel with auditwheel
+        if: matrix.os == 'ubuntu'
+        run: |
+          cd pycanha-project/pycanha-core-python/dist   
+          # Install auditwheel
+          python -m pip install auditwheel
+          # Install patchelf
+          sudo apt-get update
+          sudo apt-get install patchelf
+          # Repair the wheel
+          for whl in *.whl; do
+            auditwheel repair "$whl" --plat manylinux_2_34_x86_64 -w output
+          done
+          # Remove the original, non-repaired wheels
+          rm *.whl
+          # Move repaired wheels to dist for artifact upload
+          mv output/* .
+          rm -r output
+
+
       # Upload the artifacts wheels
       - uses: actions/upload-artifact@v4
         with:
