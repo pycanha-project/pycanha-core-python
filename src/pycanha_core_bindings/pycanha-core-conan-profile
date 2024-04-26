@@ -17,11 +17,15 @@ os = Windows
 compiler = gcc
 compiler.cppstd = 23
 compiler.libcxx = libstdc++11
-compiler.version = 11
+compiler.version = 12
 os = Linux
 
 [buildenv]
-CC =gcc-11
-CXX = g++-11
+# gcc-13 was working fine until an update to the github ubuntu runner (I think). Now it
+# compiles the wheel with a too recent version of glibc, which is not compatible with
+# manylinux wheels. So I'm using gcc-12 for now. To check the compatibility of the wheel
+# with manylinux, you can use the auditwheel tool.
+CC =gcc-12
+CXX = g++-12
 
 {% endif %}

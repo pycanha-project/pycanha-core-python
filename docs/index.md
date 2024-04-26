@@ -1,6 +1,6 @@
 # Documentation for pycanha-core python bindings
 
-Welcome to the My Project documentation.
+Documentation for pycanha-core python bindings.
 
 ## Table of Contents
 
