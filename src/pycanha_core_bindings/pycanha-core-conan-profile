@@ -17,11 +17,11 @@ os = Windows
 compiler = gcc
 compiler.cppstd = 23
 compiler.libcxx = libstdc++11
-compiler.version = 13
+compiler.version = 12
 os = Linux
 
 [buildenv]
-CC =gcc-13
-CXX = g++-13
+CC =gcc-12
+CXX = g++-12
 
 {% endif %}
