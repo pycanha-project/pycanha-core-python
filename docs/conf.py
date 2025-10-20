@@ -19,6 +19,7 @@ import toml
 os.makedirs("pycanha_core", exist_ok=True)
 # shutil.copyfile("../src/pycanha_core/__init__.pyi", "pycanha_core/__init__.py")
 shutil.copyfile("../src/pycanha_core/gmm.pyi", "pycanha_core/gmm.py")
+shutil.copyfile("../src/pycanha_core/tmm.pyi", "pycanha_core/tmm.py")
 sys.path.insert(0, os.path.abspath("."))
 print(sys.path)
 

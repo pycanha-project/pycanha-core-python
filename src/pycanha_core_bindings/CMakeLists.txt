@@ -21,3 +21,12 @@ target_compile_definitions(pycanha_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
 
 install(TARGETS pycanha_core DESTINATION .)
 
+install(
+    FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/__init__.pyi
+        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/gmm.pyi
+        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/tmm.pyi
+    DESTINATION
+        pycanha_core
+)
+
