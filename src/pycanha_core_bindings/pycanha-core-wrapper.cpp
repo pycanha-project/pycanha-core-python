@@ -16,15 +16,16 @@
 #include "pycanha-core/utils/package_info.hpp"
 
 namespace py = pybind11;
-using namespace pybind11::literals;  // for _a shorthand
+using namespace pybind11::literals; // for _a shorthand
 
 using namespace pycanha;
 
 using namespace gmm;
 using namespace pycanha::bindings::tmm;
 
-PYBIND11_MODULE(pycanha_core_cpp, m) {
-  py::module gmm_submodule = m.def_submodule("gmm", "Geometry submodule");
+PYBIND11_MODULE(pycanha_core, m) {
+  py::module gmm_submodule =
+      m.def_submodule("gmm", "Geometrical Mathematical Model");
 
   Primitive_b(gmm_submodule);
 
@@ -52,7 +53,8 @@ PYBIND11_MODULE(pycanha_core_cpp, m) {
   TriMeshModel_b(gmm_submodule);
   primitive_meshers_b(gmm_submodule);
 
-  py::module tmm_submodule = m.def_submodule("tmm", "Thermal network submodule");
+  py::module tmm_submodule =
+      m.def_submodule("tmm", "Thermal Mathematical Model");
   register_nodes(tmm_submodule);
   register_couplings(tmm_submodule);
   register_thermalnetwork(tmm_submodule);

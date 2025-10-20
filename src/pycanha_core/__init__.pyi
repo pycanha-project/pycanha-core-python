@@ -1,4 +1,6 @@
-# Explicitly remove pycanha_core from the namespace (because this file lives with the binary *.pyd file)
-del pycanha_core_cpp
+from . import gmm
+from . import tmm
 
-# __all__ = ["__doc__", "__version__", "gmm"]
+def print_package_info() -> None: ...
+
+__all__ = ["gmm", "tmm", "print_package_info"]
