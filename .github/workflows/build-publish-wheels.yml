@@ -14,7 +14,7 @@ jobs:
       fail-fast: False
       matrix:
         os: [ubuntu, windows]
-        python-version: [3.11, 3.12]
+        python-version: [3.11, 3.12, 3.13]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     runs-on: ${{ matrix.os }}-latest
