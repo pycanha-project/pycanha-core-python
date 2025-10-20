@@ -1,5 +1,5 @@
 [requires]
-pycanha-core/0.1
+pycanha-core/0.2
 
 [generators]
 CMakeDeps
