@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: False
       matrix:
-        os: [ubuntu, windows]
+        os: [ubuntu, windows, macos]
         python-version: [3.11, 3.12, 3.13]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
@@ -28,7 +28,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install python dependencies
-        run: python -m pip install toml
+        run: python -m pip install toml conan cmake ninja
 
       - name: Setup directories
         run: |
@@ -36,6 +36,12 @@ jobs:
           cd pycanha-project
           mkdir pycanha-core pycanha-core-python
         shell: bash
+
+      - name: Configure Apple Clang
+        if: matrix.os == 'macos'
+        run: |
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CXX=clang++" >> "$GITHUB_ENV"
 
       - name: Check out pycanha-core-python repo
         uses: actions/checkout@v3
