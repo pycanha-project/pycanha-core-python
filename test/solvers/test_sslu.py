@@ -2,14 +2,14 @@ import pycanha_core as pcc
 import numpy as np
 
 # Create a basic model to be solved
-tmm = pcc.ThermalMathematicalModel("test_model")
+tmm = pcc.tmm.ThermalMathematicalModel("test_model")
 
 # Create the nodes
-node_10 = pcc.Node(10)
-node_15 = pcc.Node(15)
-node_20 = pcc.Node(20)
-node_25 = pcc.Node(25)
-env_node = pcc.Node(99)
+node_10 = pcc.tmm.Node(10)
+node_15 = pcc.tmm.Node(15)
+node_20 = pcc.tmm.Node(20)
+node_25 = pcc.tmm.Node(25)
+env_node = pcc.tmm.Node(99)
 
 # Set initial temperatures (in Kelvin)
 init_temp = 273.15
@@ -31,7 +31,7 @@ node_25.capacity = 2e5
 node_15.qi = 500.0
 
 # Set env node as boundary
-env_node.type = pcc.NodeType.BOUNDARY
+env_node.type = pcc.tmm.NodeType.BOUNDARY
 
 # Add nodes to the model
 tmm.add_node(node_10)
