@@ -30,11 +30,34 @@ _CORE_OUTPUT_DIR = _SCRIPT_DIR / "build" / "pycanha-core-package"
 
 _CONAN_PREPARED = False
 _LAST_CONAN_MKL: Optional[bool] = None
+_PYPROJECT_CACHE: Optional[Dict[str, Any]] = None
+
+
+def _get_pyproject() -> Dict[str, Any]:
+    global _PYPROJECT_CACHE
+    if _PYPROJECT_CACHE is None:
+        _PYPROJECT_CACHE = toml.load(_PROJECT_ROOT / "pyproject.toml")
+    return _PYPROJECT_CACHE
 
 
 def _load_bindings_version() -> str:
-    pyproject = toml.load(_PROJECT_ROOT / "pyproject.toml")
+    pyproject = _get_pyproject()
     return ".".join(pyproject["project"]["version"].split(".")[:2])
+
+
+def _load_mkl_version() -> Optional[str]:
+    pyproject = _get_pyproject()
+    optional = pyproject.get("project", {}).get("optional-dependencies", {})
+    mkl_deps = optional.get("mkl")
+    if not mkl_deps:
+        return None
+
+    for dep in mkl_deps:
+        match = re.match(r"mkl==([\w\.\-]+)", dep)
+        if match:
+            return match.group(1)
+
+    return None
 
 
 def _write_bindings_conanfile(version: str) -> None:
@@ -119,6 +142,12 @@ def _run_command(command: Iterable[str], *, cwd: Optional[Path] = None) -> None:
 def _invoke_conan(use_mkl: bool) -> None:
     option_value = "True" if use_mkl else "False"
     option_flag = f"pycanha-core*:PYCANHA_OPTION_USE_MKL={option_value}"
+    mkl_version = _load_mkl_version()
+    version_flag = (
+        ["-o", f"pycanha-core*:PYCANHA_OPTION_MKL_VERSION={mkl_version}"]
+        if mkl_version
+        else []
+    )
 
     if _CORE_SOURCE_DIR.is_dir():
         _CORE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -142,7 +171,7 @@ def _invoke_conan(use_mkl: bool) -> None:
             str(_CORE_OUTPUT_DIR),
             "-o",
             option_flag,
-        ]
+        ] + version_flag
         _run_command(core_install_cmd, cwd=_PROJECT_ROOT)
 
         core_build_cmd = [
@@ -155,7 +184,7 @@ def _invoke_conan(use_mkl: bool) -> None:
             str(_CORE_OUTPUT_DIR),
             "-o",
             option_flag,
-        ]
+        ] + version_flag
         _run_command(core_build_cmd, cwd=_PROJECT_ROOT)
 
     bindings_install_cmd = [
@@ -167,7 +196,7 @@ def _invoke_conan(use_mkl: bool) -> None:
         f"-pr:b={_PROFILE_PATH}",
         "-o",
         option_flag,
-    ]
+    ] + version_flag
     _run_command(bindings_install_cmd, cwd=_PROJECT_ROOT)
 
 

@@ -14,7 +14,7 @@ jobs:
       fail-fast: False
       matrix:
         os: [ubuntu, windows, macos]
-        python-version: [3.11, 3.12, 3.13]
+        python-version: [3.12, 3.13]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     runs-on: ${{ matrix.os }}-latest
@@ -68,7 +68,7 @@ jobs:
       - name: Build pycanha-core-python
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build]
+          pip install .[test,build,mkl] --config-settings PYCANHA_OPTION_USE_MKL=true
         shell: bash
 
       # Run tests
