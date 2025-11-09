@@ -59,7 +59,6 @@ tscnrlds_solver.set_simulation_time(0.0, 100000.0, 1000.0, 10000.0)
 
 tscnrlds_solver.initialize()
 tscnrlds_solver.solve()
-
 solver_results = tmm.thermal_data.get_table("TSCNRLDS_OUTPUT")
 calculated_times = solver_results[:, 0]
 calculated_temps = solver_results[:, 1:]

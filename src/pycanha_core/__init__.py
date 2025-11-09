@@ -151,7 +151,9 @@ _prepare_mkl_runtime()
 
 _EXTENSION = import_module(".pycanha_core", __name__)
 _EXTENSION.load_mkl_runtime = load_mkl_runtime
-_EXTENSION.__dict__.setdefault("__all__", ["gmm", "tmm", "print_package_info"])
+_EXTENSION.__dict__.setdefault(
+    "__all__", ["gmm", "tmm", "parameters", "solvers", "NodeType", "print_package_info"]
+)
 _EXTENSION.__path__ = [str(Path(__file__).resolve().parent)]
 
 sys.modules[__name__] = _EXTENSION

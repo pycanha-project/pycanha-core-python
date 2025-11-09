@@ -61,10 +61,11 @@ sslu_solver.solve()
 
 calculated_temps = np.array(
     [
-        node_10.T,
-        node_15.T,
-        node_20.T,
-        node_25.T,
+        tmm.nodes.get_T(10),
+        tmm.nodes.get_T(15),
+        tmm.nodes.get_T(20),
+        tmm.nodes.get_T(25),
+        tmm.nodes.get_T(99),
     ]
 )
 
