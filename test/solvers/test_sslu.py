@@ -53,7 +53,7 @@ tmm.add_radiative_coupling(25, 99, 0.8)
 
 sslu_solver = pcc.solvers.SSLU(tmm)
 
-sslu_solver.MAX_ITER = 100
+sslu_solver.MAX_ITERS = 100
 sslu_solver.abstol_temp = 1e-6
 
 sslu_solver.initialize()

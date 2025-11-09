@@ -53,7 +53,7 @@ tmm.add_radiative_coupling(25, 99, 0.8)
 
 tscnrlds_solver = pcc.solvers.TSCNRLDS(tmm)
 
-tscnrlds_solver.MAX_ITER = 100
+tscnrlds_solver.MAX_ITERS = 100
 tscnrlds_solver.abstol_temp = 1e-6
 tscnrlds_solver.set_simulation_time(0.0, 100000.0, 1000.0, 10000.0)
 
