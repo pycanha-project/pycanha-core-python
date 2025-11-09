@@ -120,9 +120,11 @@ def _prepare_mkl_runtime() -> None:
     if sys.platform == "darwin":
         runtime_patterns = ("libmkl_rt.dylib", "libmkl_rt.*.dylib")
         omp_patterns = ("libiomp5.dylib", "libiomp5.*.dylib")
+        path_var = "DYLD_LIBRARY_PATH"
     else:
         runtime_patterns = ("libmkl_rt.so", "libmkl_rt.so.*", "libmkl_rt.*.so")
         omp_patterns = ("libiomp5.so", "libiomp5.so.*")
+        path_var = "LD_LIBRARY_PATH"
 
     runtime = _locate_library(runtime_patterns)
     if runtime is None:
@@ -130,6 +132,13 @@ def _prepare_mkl_runtime() -> None:
             "Intel MKL runtime libraries could not be located. "
             "Install the 'mkl-devel' wheel inside your virtual environment "
             "or set the MKLROOT environment variable before importing pycanha_core."
+        )
+
+    lib_dir = runtime.parent
+    existing_paths = os.environ.get(path_var, "").split(os.pathsep) if path_var else []
+    if str(lib_dir) not in existing_paths:
+        os.environ[path_var] = os.pathsep.join(
+            ([str(lib_dir)] + [p for p in existing_paths if p])
         )
 
     _load_shared_library(runtime)
