@@ -74,9 +74,10 @@ jobs:
 
       - name: Build pycanha-core-python (macOS)
         if: matrix.os == 'macos'
+      # I need to put false for MKL on mac because by default, pycanha-core conan recipe uses MKL
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build]
+          pip install .[test,build] --config-settings PYCANHA_OPTION_USE_MKL=false
         shell: bash
 
       # Run tests

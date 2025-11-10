@@ -38,7 +38,16 @@ def _gather_candidate_dirs() -> List[Path]:
         if not env_val:
             continue
         root = Path(env_val)
-        for suffix in ("", "lib", "lib64", "lib/intel64", "lib/intel64_lin"):
+        for suffix in (
+            "",
+            "lib",
+            "lib64",
+            "lib/intel64",
+            "lib/intel64_lin",
+            "bin",
+            "bin/intel64",
+            "redist/intel64",
+        ):
             _add(collected, seen, root / suffix)
 
     prefixes = {
@@ -47,7 +56,7 @@ def _gather_candidate_dirs() -> List[Path]:
         Path(sys.exec_prefix),
     }
     for prefix in prefixes:
-        for suffix in ("", "lib", "lib64", "Library/lib"):
+        for suffix in ("", "lib", "lib64", "Library/lib", "Library/bin"):
             _add(collected, seen, prefix / suffix)
 
     try:
@@ -63,6 +72,10 @@ def _gather_candidate_dirs() -> List[Path]:
         _add(collected, seen, entry)
 
     for raw in os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep):
+        if raw:
+            _add(collected, seen, Path(raw))
+
+    for raw in os.environ.get("PATH", "").split(os.pathsep):
         if raw:
             _add(collected, seen, Path(raw))
 
