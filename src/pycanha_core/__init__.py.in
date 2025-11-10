@@ -4,7 +4,7 @@ This module ensures the Intel MKL runtime shipped via ``mkl``/``mkl-devel``
 Python wheels is made available before the native extension is loaded.
 """
 
-# NOTE: This file is generated from __init__.py.in by the build backend.
+# NOTE: Template used by the build backend to render __init__.py.
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from typing import Iterable, List, Optional, Tuple
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
-_USE_MKL = False  # build backend replaces this flag when rendering the wheel
+_USE_MKL = @PYCANHA_USE_MKL@
 
 
 def _gather_candidate_dirs() -> List[Path]:

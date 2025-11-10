@@ -27,6 +27,8 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 _CORE_SOURCE_DIR = (_PROJECT_ROOT.parent / "pycanha-core").resolve()
 _PROFILE_PATH = _SCRIPT_DIR / "pycanha-core-conan-profile"
 _CORE_OUTPUT_DIR = _SCRIPT_DIR / "build" / "pycanha-core-package"
+_PYCORE_INIT_TEMPLATE = _PROJECT_ROOT / "src" / "pycanha_core" / "__init__.py.in"
+_PYCORE_INIT_OUTPUT = _PROJECT_ROOT / "src" / "pycanha_core" / "__init__.py"
 
 _CONAN_PREPARED = False
 _LAST_CONAN_MKL: Optional[bool] = None
@@ -65,6 +67,21 @@ def _write_bindings_conanfile(version: str) -> None:
     output_path = _SCRIPT_DIR / "conanfile.txt"
     content = template_path.read_text()
     output_path.write_text(content.replace("@CONFIG_PYCANHA_CORE_VERSION@", version))
+
+
+def _render_python_init(use_mkl: bool) -> None:
+    if not _PYCORE_INIT_TEMPLATE.is_file():
+        return
+
+    template = _PYCORE_INIT_TEMPLATE.read_text()
+    rendered = template.replace("@PYCANHA_USE_MKL@", "True" if use_mkl else "False")
+
+    if _PYCORE_INIT_OUTPUT.exists():
+        current = _PYCORE_INIT_OUTPUT.read_text()
+        if current == rendered:
+            return
+
+    _PYCORE_INIT_OUTPUT.write_text(rendered)
 
 
 def _verify_core_version(expected_version: str) -> None:
@@ -230,6 +247,7 @@ def _prepare_conan(config_settings: Optional[Dict[str, Any]]) -> None:
     bindings_version = _load_bindings_version()
     _write_bindings_conanfile(bindings_version)
     _verify_core_version(bindings_version)
+    _render_python_init(use_mkl)
 
     _invoke_conan(use_mkl)
     _patch_cmake_presets()
