@@ -1,6 +1,7 @@
 # This profile ensures that pycanha-core and its dependencies are built in Release mode (for MSVC, GCC, CLANG or others)
 [settings]
-arch = x86_64
+{% set detected_arch = "armv8" if platform.machine().lower() in ("arm64", "aarch64") else "x86_64" %}
+arch = {{ detected_arch }}
 build_type = Release
 
 {% if platform.system()=="Windows" %}
