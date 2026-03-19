@@ -10,7 +10,7 @@ backend-path = [
 
 [project]
 name = "pycanha-core"
-version = "0.3.0"
+version = "0.6.0"
 description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
@@ -32,6 +32,8 @@ dependencies = ['numpy>=1.24.0']
 test = ["pytest"]
 build = ["build"]
 docs = ["sphinx", "myst-parser", "sphinx-autoapi"]
+
+mkl = ["mkl==2025.3.0"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
@@ -100,7 +102,7 @@ editable.verbose = true
 
 # Strictly check all config options. If False, warnings will be printed for
 # unknown options. If True, an error will be raised.
-strict-config = true
+strict-config = false
 
 # The build directory. Defaults to a temporary directory, but can be set.
 build-dir = ""

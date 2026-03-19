@@ -12,11 +12,11 @@
 #include "pycanha-core/tmm/nodes.hpp"
 
 namespace py = pybind11;
-using namespace pybind11::literals;  // NOLINT(build/namespaces)
+using namespace pybind11::literals; // NOLINT(build/namespaces)
 
 using pycanha::Node;
-using pycanha::NodeType;
 using pycanha::Nodes;
+using pycanha::NodeType;
 
 namespace pycanha::bindings::tmm {
 
@@ -26,20 +26,20 @@ inline void Node_b(py::module_ &m) {
       .value("BOUNDARY", NodeType::BOUNDARY_NODE)
       .export_values();
 
-     py::class_<Node>(m, "Node")
-               .def(py::init<int>(), "node_num"_a, "Create an unassociated node")
-               .def(py::init<const Node &>(), "Copy constructor")
-               .def_property("node_num", &Node::get_node_num, &Node::set_node_num)
-               .def_property(
-                         "type",
-                         [](Node &self) {
-                              return static_cast<NodeType>(self.get_type());
-                         },
-                         [](Node &self, NodeType node_type) {
-                              self.set_type(static_cast<char>(node_type));
-                         })
+  py::class_<Node>(m, "Node")
+      .def(py::init<int>(), "node_num"_a, "Create an unassociated node")
+      .def(py::init<const Node &>(), "Copy constructor")
+      .def_property("node_num", &Node::get_node_num, &Node::set_node_num)
+      .def_property(
+          "type",
+          [](Node &self) { return static_cast<NodeType>(self.get_type()); },
+          [](Node &self, NodeType node_type) {
+            self.set_type(static_cast<char>(node_type));
+          })
       .def_property("T", &Node::get_T, &Node::set_T)
       .def_property("C", &Node::get_C, &Node::set_C)
+      .def_property("capacity", &Node::get_C, &Node::set_C,
+                    "Thermal capacity alias")
       .def_property("qs", &Node::get_qs, &Node::set_qs)
       .def_property("qa", &Node::get_qa, &Node::set_qa)
       .def_property("qe", &Node::get_qe, &Node::set_qe)
@@ -64,24 +64,27 @@ inline void Node_b(py::module_ &m) {
 inline void Nodes_b(py::module_ &m) {
   py::class_<Nodes, std::shared_ptr<Nodes>>(m, "Nodes")
       .def(py::init<>())
-      .def_property("estimated_number_of_nodes",
-                    [](Nodes &self) { return self.estimated_number_of_nodes; },
-                    [](Nodes &self, int value) {
-                      self.estimated_number_of_nodes = value;
-                    })
+      .def_property(
+          "estimated_number_of_nodes",
+          [](Nodes &self) { return self.estimated_number_of_nodes; },
+          [](Nodes &self, int value) {
+            self.estimated_number_of_nodes = value;
+          })
       .def("add_node", &Nodes::add_node, "node"_a)
       .def("remove_node", &Nodes::remove_node, "node_num"_a)
       .def("is_node", &Nodes::is_node, "node_num"_a)
-      .def("get_type",
-           [](Nodes &self, int node_num) {
-             return static_cast<NodeType>(self.get_type(node_num));
-           },
-           "node_num"_a)
-      .def("set_type",
-           [](Nodes &self, int node_num, NodeType node_type) {
-             return self.set_type(node_num, static_cast<char>(node_type));
-           },
-           "node_num"_a, "node_type"_a)
+      .def(
+          "get_type",
+          [](Nodes &self, int node_num) {
+            return static_cast<NodeType>(self.get_type(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "set_type",
+          [](Nodes &self, int node_num, NodeType node_type) {
+            return self.set_type(node_num, static_cast<char>(node_type));
+          },
+          "node_num"_a, "node_type"_a)
       .def("get_T", &Nodes::get_T, "node_num"_a)
       .def("set_T", &Nodes::set_T, "node_num"_a, "value"_a)
       .def("get_C", &Nodes::get_C, "node_num"_a)
@@ -109,10 +112,8 @@ inline void Nodes_b(py::module_ &m) {
       .def("get_aph", &Nodes::get_aph, "node_num"_a)
       .def("set_aph", &Nodes::set_aph, "node_num"_a, "value"_a)
       .def("get_literal_C", &Nodes::get_literal_C, "node_num"_a)
-      .def("set_literal_C", &Nodes::set_literal_C, "node_num"_a,
-           "literal"_a)
-      .def("get_idx_from_node_num", &Nodes::get_idx_from_node_num,
-           "node_num"_a)
+      .def("set_literal_C", &Nodes::set_literal_C, "node_num"_a, "literal"_a)
+      .def("get_idx_from_node_num", &Nodes::get_idx_from_node_num, "node_num"_a)
       .def("get_node_num_from_idx", &Nodes::get_node_num_from_idx, "idx"_a)
       .def("get_node_from_node_num", &Nodes::get_node_from_node_num,
            py::return_value_policy::move, "node_num"_a)
@@ -122,84 +123,97 @@ inline void Nodes_b(py::module_ &m) {
       .def_property_readonly("num_diff_nodes", &Nodes::get_num_diff_nodes)
       .def_property_readonly("num_bound_nodes", &Nodes::get_num_bound_nodes)
       .def("is_mapped", &Nodes::is_mapped)
-      .def("get_T_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_T_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_C_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_C_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_qs_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_qs_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_qa_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_qa_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_qe_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_qe_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_qi_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_qi_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_qr_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_qr_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_a_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_a_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_fx_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_fx_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_fy_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_fy_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_fz_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_fz_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_eps_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_eps_value_ref(node_num));
-           },
-           "node_num"_a)
-      .def("get_aph_value_pointer",
-           [](Nodes &self, int node_num) {
-             return reinterpret_cast<std::uintptr_t>(
-                 self.get_aph_value_ref(node_num));
-           },
-           "node_num"_a);
+      .def(
+          "get_T_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_T_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_C_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_C_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_qs_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_qs_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_qa_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_qa_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_qe_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_qe_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_qi_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_qi_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_qr_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_qr_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_a_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_a_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_fx_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_fx_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_fy_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_fy_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_fz_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_fz_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_eps_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_eps_value_ref(node_num));
+          },
+          "node_num"_a)
+      .def(
+          "get_aph_value_pointer",
+          [](Nodes &self, int node_num) {
+            return reinterpret_cast<std::uintptr_t>(
+                self.get_aph_value_ref(node_num));
+          },
+          "node_num"_a);
 }
 
 inline void register_nodes(py::module_ &m) {
@@ -207,4 +221,4 @@ inline void register_nodes(py::module_ &m) {
   Nodes_b(m);
 }
 
-}  // namespace pycanha::bindings::tmm
+} // namespace pycanha::bindings::tmm

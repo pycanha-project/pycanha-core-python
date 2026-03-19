@@ -1,11 +1,11 @@
 import pytest
 
-import pycanha_core as core
+import pycanha_core as pcc
 
 
 def test_nodes_add_and_get():
-    nodes = core.tmm.Nodes()
-    node = core.tmm.Node(101)
+    nodes = pcc.tmm.Nodes()
+    node = pcc.tmm.Node(101)
     node.T = 273.15
     node.C = 42.0
 
@@ -18,11 +18,11 @@ def test_nodes_add_and_get():
 
 
 def test_couplings_store_values():
-    nodes = core.tmm.Nodes()
-    nodes.add_node(core.tmm.Node(1))
-    nodes.add_node(core.tmm.Node(2))
+    nodes = pcc.tmm.Nodes()
+    nodes.add_node(pcc.tmm.Node(1))
+    nodes.add_node(pcc.tmm.Node(2))
 
-    couplings = core.tmm.Couplings(nodes)
+    couplings = pcc.tmm.Couplings(nodes)
     couplings.add_coupling(1, 2, 15.0)
 
     assert couplings.get_coupling_value(1, 2) == pytest.approx(15.0)
@@ -30,9 +30,9 @@ def test_couplings_store_values():
 
 
 def test_thermal_network_links_resources():
-    network = core.tmm.ThermalNetwork()
-    network.add_node(core.tmm.Node(1))
-    network.add_node(core.tmm.Node(2))
+    network = pcc.tmm.ThermalNetwork()
+    network.add_node(pcc.tmm.Node(1))
+    network.add_node(pcc.tmm.Node(2))
 
     assert network.nodes.num_nodes == 2
     network.conductive_couplings.add_coupling(1, 2, 5.0)

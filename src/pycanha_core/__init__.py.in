@@ -18,7 +18,7 @@ from typing import List
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
-_USE_MKL = True
+_USE_MKL = @PYCANHA_USE_MKL@
 
 
 def _pip_mkl_dirs() -> List[Path]:

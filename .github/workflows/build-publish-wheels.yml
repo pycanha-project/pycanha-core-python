@@ -14,7 +14,7 @@ jobs:
       fail-fast: False
       matrix:
         os: [ubuntu, windows, macos]
-        python-version: [3.11, 3.12, 3.13]
+        python-version: [3.12, 3.13]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     runs-on: ${{ matrix.os }}-latest
@@ -65,10 +65,19 @@ jobs:
           ref: v${{ steps.get_version.outputs.version }}
 
       # Build/install pycanha-core-python bindings with test dependencies
-      - name: Build pycanha-core-python
+      - name: Build pycanha-core-python (Linux/Windows)
+        if: matrix.os != 'macos'
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build]
+          pip install .[test,build,mkl] --config-settings PYCANHA_OPTION_USE_MKL=true
+        shell: bash
+
+      - name: Build pycanha-core-python (macOS)
+        if: matrix.os == 'macos'
+      # I need to put false for MKL on mac because by default, pycanha-core conan recipe uses MKL
+        run: |
+          cd pycanha-project/pycanha-core-python
+          pip install .[test,build] --config-settings PYCANHA_OPTION_USE_MKL=false
         shell: bash
 
       # Run tests

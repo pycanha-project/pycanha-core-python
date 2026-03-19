@@ -1,5 +1,5 @@
 [requires]
-pycanha-core/0.3
+pycanha-core/0.6
 
 [generators]
 CMakeDeps
@@ -11,6 +11,7 @@ cmake_layout
 [options]
 pycanha-core*:PYCANHA_OPTION_LIBRARY = True
 pycanha-core*:PYCANHA_OPTION_LTO = True
+pycanha-core*:PYCANHA_OPTION_MKL_LINK = dynamic
 pycanha-core*:PYCANHA_OPTION_DOCS = False
 pycanha-core*:PYCANHA_OPTION_WARNINGS = False
 pycanha-core*:PYCANHA_OPTION_WARNINGS_AS_ERRORS = False

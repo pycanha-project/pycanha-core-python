@@ -1,9 +1,9 @@
 # This profile ensures that pycanha-core and its dependencies are built in Release mode (for MSVC, GCC, CLANG or others)
 [settings]
-arch = x86_64
+{% set detected_arch = "armv8" if platform.machine().lower() in ("arm64", "aarch64") else "x86_64" %}
+arch = {{ detected_arch }}
 build_type = Release
 
-# In the future you might want to set this only for msvc
 {% if platform.system()=="Windows" %}
 compiler = msvc
 compiler.runtime_type = Release
@@ -11,6 +11,18 @@ compiler.cppstd = 23
 compiler.runtime = dynamic
 compiler.version = 193
 os = Windows
+
+{% elif platform.system()=="Darwin" %}
+# macOS with Apple Clang
+compiler = apple-clang
+compiler.cppstd = 23
+compiler.libcxx = libc++
+compiler.version = 15.0
+os = Macos
+
+[buildenv]
+CC = clang
+CXX = clang++
 
 {% else %}
 # Linux gcc
@@ -25,7 +37,7 @@ os = Linux
 # compiles the wheel with a too recent version of glibc, which is not compatible with
 # manylinux wheels. So I'm using gcc-12 for now. To check the compatibility of the wheel
 # with manylinux, you can use the auditwheel tool.
-CC =gcc-12
+CC = gcc-12
 CXX = g++-12
 
 {% endif %}
