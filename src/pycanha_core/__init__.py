@@ -2,9 +2,10 @@
 
 This module ensures the Intel MKL runtime shipped via ``mkl``/``mkl-devel``
 Python wheels is made available before the native extension is loaded.
-"""
 
-# NOTE: This file is generated from __init__.py.in by the build backend.
+MKL is always loaded from the current Python environment (pip-installed).
+System MKL installations are deliberately ignored to prevent ABI mismatches.
+"""
 
 from __future__ import annotations
 
@@ -13,119 +14,67 @@ import os
 import sys
 from importlib import import_module
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
-
+from typing import List
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
-_USE_MKL = False  # build backend replaces this flag when rendering the wheel
+_USE_MKL = True
 
 
-def _gather_candidate_dirs() -> List[Path]:
-    """Collect likely directories containing MKL shared libraries."""
+def _pip_mkl_dirs() -> List[Path]:
+    """Return MKL library directories from the current Python environment.
 
-    def _add(paths: List[Path], seen: set[Path], candidate: Path) -> None:
-        try:
-            resolved = candidate.resolve(strict=False)
-        except OSError:
-            return
-        if resolved.exists() and resolved not in seen:
-            seen.add(resolved)
-            paths.append(resolved)
-
-    collected: List[Path] = []
+    pip-installed MKL places libraries at predictable locations relative to
+    ``sys.prefix``:
+      - Windows: ``<prefix>/Library/bin`` (DLLs)
+      - Linux:   ``<prefix>/lib``
+      - macOS:   ``<prefix>/lib``
+    """
+    dirs: List[Path] = []
     seen: set[Path] = set()
-
-    for env_key in ("MKLROOT", "MKL_ROOT"):
-        env_val = os.environ.get(env_key)
-        if not env_val:
-            continue
-        root = Path(env_val)
-        for suffix in (
-            "",
-            "lib",
-            "lib64",
-            "lib/intel64",
-            "lib/intel64_lin",
-            "bin",
-            "bin/intel64",
-            "redist/intel64",
-        ):
-            _add(collected, seen, root / suffix)
 
     prefixes = {
         Path(sys.prefix),
         Path(getattr(sys, "base_prefix", sys.prefix)),
         Path(sys.exec_prefix),
     }
-    for prefix in prefixes:
-        for suffix in ("", "lib", "lib64", "Library/lib", "Library/bin"):
-            _add(collected, seen, prefix / suffix)
 
-    try:
-        import site
-    except Exception:  # pragma: no cover - site may be unavailable in rare setups
-        site_dirs: Tuple[Path, ...] = ()
+    if os.name == "nt":
+        suffixes = ("Library/bin", "Library/lib")
     else:
-        site_dirs = (
-            Path(site.getuserbase()) / "lib",
-            Path(site.getuserbase()) / "Library/lib",
-        )
-    for entry in site_dirs:
-        _add(collected, seen, entry)
+        suffixes = ("lib", "lib64")
 
-    for raw in os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep):
-        if raw:
-            _add(collected, seen, Path(raw))
-
-    for raw in os.environ.get("PATH", "").split(os.pathsep):
-        if raw:
-            _add(collected, seen, Path(raw))
-
-    return collected
-
-
-def _locate_library(patterns: Iterable[str]) -> Optional[Path]:
-    """Return the first library matching any of the glob patterns."""
-
-    candidates = _gather_candidate_dirs()
-    for directory in candidates:
-        for pattern in patterns:
-            for match in directory.glob(pattern):
-                if match.is_file():
-                    return match.resolve()
-
-    for directory in candidates:
-        for pattern in patterns:
+    for prefix in prefixes:
+        for suffix in suffixes:
+            candidate = prefix / suffix
             try:
-                iterator = directory.rglob(pattern)
-            except (PermissionError, OSError):
+                resolved = candidate.resolve(strict=False)
+            except OSError:
                 continue
-            for match in iterator:
-                if match.is_file():
-                    return match.resolve()
+            if resolved.exists() and resolved not in seen:
+                seen.add(resolved)
+                dirs.append(resolved)
 
-    return None
-
-
-def _load_shared_library(path: Path) -> None:
-    """Attempt to load a shared library with RTLD_GLOBAL visibility."""
-
-    try:
-        ctypes.CDLL(str(path), mode=_RTLD_GLOBAL)
-    except OSError as exc:  # pragma: no cover - depends on host configuration
-        raise ImportError(f"Failed to load shared library '{path}'.") from exc
+    return dirs
 
 
 def _prepare_mkl_runtime() -> None:
-    """Ensure the Intel MKL runtime is visible to the extension module."""
+    """Ensure the Intel MKL runtime is visible to the extension module.
 
+    On Windows (Python >= 3.8), DLL search paths must be registered
+    explicitly via ``os.add_dll_directory``.  On Linux/macOS the library
+    directory is prepended to ``LD_LIBRARY_PATH``/``DYLD_LIBRARY_PATH``
+    and the MKL runtime library is pre-loaded with global visibility so
+    that the extension module can resolve MKL symbols.
+    """
     global _MKL_READY
     if _MKL_READY or not _USE_MKL:
         return
 
-    if os.name == "nt":  # pragma: no cover - Windows not exercised in CI
-        for directory in _gather_candidate_dirs():
+    mkl_dirs = _pip_mkl_dirs()
+
+    if os.name == "nt":
+        for directory in mkl_dirs:
             try:
                 os.add_dll_directory(str(directory))
             except (OSError, AttributeError):
@@ -133,42 +82,40 @@ def _prepare_mkl_runtime() -> None:
         _MKL_READY = True
         return
 
+    # Linux / macOS: prepend pip MKL lib dir to the library search path
+    # and pre-load the MKL runtime with RTLD_GLOBAL visibility.
     if sys.platform == "darwin":
-        runtime_patterns = ("libmkl_rt.dylib", "libmkl_rt.*.dylib")
-        omp_patterns = ("libiomp5.dylib", "libiomp5.*.dylib")
         path_var = "DYLD_LIBRARY_PATH"
+        rt_names = ("libmkl_rt.dylib", "libmkl_rt.*.dylib")
+        omp_names = ("libiomp5.dylib",)
     else:
-        runtime_patterns = ("libmkl_rt.so", "libmkl_rt.so.*", "libmkl_rt.*.so")
-        omp_patterns = ("libiomp5.so", "libiomp5.so.*")
         path_var = "LD_LIBRARY_PATH"
+        rt_names = ("libmkl_rt.so", "libmkl_rt.so.*")
+        omp_names = ("libiomp5.so", "libiomp5.so.*")
 
-    runtime = _locate_library(runtime_patterns)
-    if runtime is None:
-        raise ImportError(
-            "Intel MKL runtime libraries could not be located. "
-            "Install the 'mkl-devel' wheel inside your virtual environment "
-            "or set the MKLROOT environment variable before importing pycanha_core."
-        )
+    # Add dirs to library search path
+    existing = os.environ.get(path_var, "").split(os.pathsep)
+    for d in mkl_dirs:
+        if str(d) not in existing:
+            existing.insert(0, str(d))
+    os.environ[path_var] = os.pathsep.join(p for p in existing if p)
 
-    lib_dir = runtime.parent
-    existing_paths = os.environ.get(path_var, "").split(os.pathsep) if path_var else []
-    if str(lib_dir) not in existing_paths:
-        os.environ[path_var] = os.pathsep.join(
-            ([str(lib_dir)] + [p for p in existing_paths if p])
-        )
-
-    _load_shared_library(runtime)
-
-    omp = _locate_library(omp_patterns)
-    if omp is not None:
-        _load_shared_library(omp)
+    # Pre-load MKL runtime and OpenMP
+    for directory in mkl_dirs:
+        for patterns in (rt_names, omp_names):
+            for pattern in patterns:
+                for match in directory.glob(pattern):
+                    if match.is_file():
+                        try:
+                            ctypes.CDLL(str(match), mode=_RTLD_GLOBAL)
+                        except OSError:
+                            continue
 
     _MKL_READY = True
 
 
 def load_mkl_runtime() -> None:
     """Public helper to (re)run the MKL loader."""
-
     _prepare_mkl_runtime()
 
 
