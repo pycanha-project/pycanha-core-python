@@ -10,17 +10,17 @@ backend-path = [
 
 [project]
 name = "pycanha-core"
-version = "0.6.0"
+version = "0.7.0"
 description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     #Add licence classifiers
     #Add development status classifiers
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = ['numpy>=1.24.0']
 
@@ -33,7 +33,7 @@ test = ["pytest"]
 build = ["build"]
 docs = ["sphinx", "myst-parser", "sphinx-autoapi"]
 
-mkl = ["mkl==2025.3.0"]
+mkl = ["mkl==2025.3.1"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
