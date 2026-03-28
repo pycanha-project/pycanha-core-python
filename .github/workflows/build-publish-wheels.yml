@@ -42,6 +42,12 @@ jobs:
           echo "CC=gcc-14" >> "$GITHUB_ENV"
           echo "CXX=g++-14" >> "$GITHUB_ENV"
 
+      - name: Add GCC 14 support to Conan settings (Ubuntu)
+        if: matrix.os == 'ubuntu'
+        run: |
+          conan profile detect --force
+          sed -i "s/'13', '13.1', '13.2'\]/'13', '13.1', '13.2', '14'\]/" ~/.conan2/settings.yml
+
       - name: Setup directories
         run: |
           mkdir pycanha-project
@@ -54,6 +60,12 @@ jobs:
         run: |
           echo "CC=clang" >> "$GITHUB_ENV"
           echo "CXX=clang++" >> "$GITHUB_ENV"
+
+      - name: Add Apple Clang 18 support to Conan settings (macOS)
+        if: matrix.os == 'macos'
+        run: |
+          conan profile detect --force
+          sed -i '' "s/'15', '15.0'\]/'15', '15.0', '16.0', '17.0', '18.0'\]/" ~/.conan2/settings.yml
 
       - name: Check out pycanha-core-python repo
         uses: actions/checkout@v3
