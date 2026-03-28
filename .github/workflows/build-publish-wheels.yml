@@ -65,7 +65,19 @@ jobs:
         if: matrix.os == 'macos'
         run: |
           conan profile detect --force
-          sed -i '' "s/'15', '15.0'\]/'15', '15.0', '16.0', '17.0', '18.0'\]/" ~/.conan2/settings.yml
+          python3 -c "
+import re, pathlib
+p = pathlib.Path.home() / '.conan2/settings.yml'
+content = p.read_text()
+# Append '18', '18.0' to the apple-clang versions list if not already present
+if \"'18'\" not in content:
+    content = re.sub(
+        r\"(compiler:\s*apple-clang:.*?version:\s*\[)(.*?)(\])\",
+        lambda m: m.group(1) + m.group(2).rstrip() + \", '18', '18.0'\" + m.group(3),
+        content, flags=re.DOTALL
+    )
+    p.write_text(content)
+"
 
       - name: Check out pycanha-core-python repo
         uses: actions/checkout@v3
@@ -129,7 +141,7 @@ jobs:
           sudo apt-get install patchelf
           # Repair the wheel
           for whl in *.whl; do
-            auditwheel repair "$whl" --plat manylinux_2_34_x86_64 -w output
+            auditwheel repair "$whl" --plat manylinux_2_39_x86_64 -w output
           done
           # Remove the original, non-repaired wheels
           rm *.whl
