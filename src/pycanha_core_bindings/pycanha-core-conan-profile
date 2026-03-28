@@ -17,7 +17,7 @@ os = Windows
 compiler = apple-clang
 compiler.cppstd = 23
 compiler.libcxx = libc++
-compiler.version = 18.0
+compiler.version = 18
 os = Macos
 
 [buildenv]

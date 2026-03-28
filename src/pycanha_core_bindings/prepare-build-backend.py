@@ -16,11 +16,9 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-import toml
-
 import scikit_build_core.build as _scikit_build
+import toml
 from scikit_build_core.build import *  # noqa: F401,F403 - re-export build backend hooks
-
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
@@ -151,8 +149,7 @@ def _run_command(command: Iterable[str], *, cwd: Optional[Path] = None) -> None:
         stdout = process.stdout.decode()
         stderr = process.stderr.decode()
         raise RuntimeError(
-            "Command failed: "
-            f"{' '.join(command)}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+            f"Command failed: {' '.join(command)}\nstdout:\n{stdout}\nstderr:\n{stderr}"
         )
 
 
@@ -218,23 +215,44 @@ def _invoke_conan(use_mkl: bool) -> None:
 
 
 def _patch_cmake_presets() -> None:
+    files_to_patch = []
+
+    # Conan may emit presets directly in CMakePresets.json, or via includes
+    # from CMakeUserPresets.json depending on Conan version/config.
+    for candidate in (
+        _SCRIPT_DIR / "CMakePresets.json",
+        _SCRIPT_DIR / "CMakeUserPresets.json",
+    ):
+        if candidate.is_file():
+            files_to_patch.append(candidate)
+
     user_presets = _SCRIPT_DIR / "CMakeUserPresets.json"
-    if not user_presets.is_file():
-        return
+    if user_presets.is_file():
+        try:
+            data = json.loads(user_presets.read_text())
+        except json.JSONDecodeError:
+            data = {}
 
-    data = json.loads(user_presets.read_text())
-    include_files = data.get("include", [])
-    if not include_files:
-        return
+        for include_file in data.get("include", []):
+            include_path = (user_presets.parent / include_file).resolve()
+            if include_path.is_file():
+                files_to_patch.append(include_path)
 
-    preset_path = (user_presets.parent / include_files[0]).resolve()
-    if not preset_path.is_file():
-        return
+    seen_paths = set()
+    unique_files = []
+    for preset_file in files_to_patch:
+        path_str = str(preset_file)
+        if path_str in seen_paths:
+            continue
+        seen_paths.add(path_str)
+        unique_files.append(preset_file)
 
-    content = preset_path.read_text()
-    content = content.replace("conan-default", "conan-release")
-    content = content.replace("Unix Makefiles", "Ninja")
-    preset_path.write_text(content)
+    for preset_file in unique_files:
+        content = preset_file.read_text()
+        patched = content.replace("conan-default", "conan-release")
+        patched = patched.replace("Unix Makefiles", "Ninja")
+        if patched != content:
+            preset_file.write_text(patched)
 
 
 def _prepare_conan(config_settings: Optional[Dict[str, Any]]) -> None:

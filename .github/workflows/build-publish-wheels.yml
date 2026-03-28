@@ -69,9 +69,13 @@ jobs:
           import pathlib
           p = pathlib.Path.home() / '.conan2/settings.yml'
           content = p.read_text()
-          if '"18"' not in content:
-              content = content.replace('"17.0"]', '"17.0", "18", "18.0"]')
-              p.write_text(content)
+          if '"18"' not in content and "'18'" not in content and '"18.0"' not in content and "'18.0'" not in content:
+            updated = content
+            updated = updated.replace('"17.0"]', '"17.0", "18", "18.0"]')
+            updated = updated.replace("'17.0']", "'17.0', '18', '18.0']")
+            if updated == content:
+              raise RuntimeError('Could not patch apple-clang versions in Conan settings.yml')
+            p.write_text(updated)
           PYEOF
 
       - name: Check out pycanha-core-python repo
