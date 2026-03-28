@@ -66,15 +66,11 @@ jobs:
         run: |
           conan profile detect --force
           python3 - << 'PYEOF'
-          import re, pathlib
+          import pathlib
           p = pathlib.Path.home() / '.conan2/settings.yml'
           content = p.read_text()
-          if "'18'" not in content:
-              content = re.sub(
-                  r"(compiler:\s*apple-clang:.*?version:\s*\[)(.*?)(\])",
-                  lambda m: m.group(1) + m.group(2).rstrip() + ", '18', '18.0'" + m.group(3),
-                  content, flags=re.DOTALL
-              )
+          if '"18"' not in content:
+              content = content.replace('"17.0"]', '"17.0", "18", "18.0"]')
               p.write_text(content)
           PYEOF
 
