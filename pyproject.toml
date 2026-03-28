@@ -1,6 +1,6 @@
 [build-system]
-requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0, !=2.2.0, <2.3.0", "toml"]
-# Known conan broken versions: 2.2.0, 2.3.0
+requires = ["scikit-build-core>=0.8", "pybind11", "cmake", "conan>=2.0, !=2.2.0", "toml"]
+# Keep Conan modern in isolated build envs; old 2.2.0 is known problematic.
 # For a "regular" build with scikit-build-core, you would just use:
 # build-backend = "scikit_build_core.build"
 build-backend = "prepare-build-backend" # Custom wrapper around scikit_build_core.build See comments in prepare-build-backend.py.
@@ -10,17 +10,17 @@ backend-path = [
 
 [project]
 name = "pycanha-core"
-version = "0.6.0"
+version = "0.7.0"
 description = "Python bindings for pycanha-core with Pybind11"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     #Add licence classifiers
     #Add development status classifiers
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = ['numpy>=1.24.0']
 
@@ -33,7 +33,7 @@ test = ["pytest"]
 build = ["build"]
 docs = ["sphinx", "myst-parser", "sphinx-autoapi"]
 
-mkl = ["mkl==2025.3.0"]
+mkl = ["mkl==2025.3.1"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
