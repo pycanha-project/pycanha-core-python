@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      # Setup the directories
       - name: Setup python
         uses: actions/setup-python@v5
         with:
@@ -37,7 +36,13 @@ jobs:
           mkdir pycanha-core pycanha-core-python
         shell: bash
 
-      - name: Configure Apple Clang
+      - name: Configure compiler (Linux)
+        if: matrix.os == 'ubuntu'
+        run: |
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+
+      - name: Configure compiler (macOS)
         if: matrix.os == 'macos'
         run: |
           echo "CC=clang" >> "$GITHUB_ENV"
@@ -48,18 +53,13 @@ jobs:
         with:
           path: pycanha-project/pycanha-core-python
 
-      - name: Get metadata from pyproject.toml
+      - name: Get version from pyproject.toml
         run: |
-          import os
-          import tomllib
+          import os, tomllib
           from pathlib import Path
-
-          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
-          pyproject = tomllib.loads(pyproject_path.read_text())
-
+          pyproject = tomllib.loads(Path("pycanha-project/pycanha-core-python/pyproject.toml").read_text())
           version = ".".join(pyproject["project"]["version"].split(".")[:2])
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"version={version}\n")
         shell: python
         id: metadata
@@ -71,151 +71,64 @@ jobs:
           path: pycanha-project/pycanha-core
           ref: v${{ steps.metadata.outputs.version }}
 
-      - name: Resolve and validate MKL version
-        run: |
-          import os
-          import re
-          import tomllib
-          from pathlib import Path
-
-          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
-          core_conanfile_path = Path("pycanha-project/pycanha-core/conanfile.py")
-
-          pyproject = tomllib.loads(pyproject_path.read_text())
-          mkl_deps = pyproject.get("project", {}).get("optional-dependencies", {}).get("mkl", [])
-
-          pyproject_mkl = ""
-          for dep in mkl_deps:
-              if dep.startswith("mkl=="):
-                  pyproject_mkl = dep.split("==", 1)[1]
-                  break
-
-          core_text = core_conanfile_path.read_text()
-          match = re.search(r'"mkl"\s*:\s*"([^\"]+)"', core_text)
-          if match is None:
-              raise RuntimeError("Could not extract MKL version from pycanha-core conanfile.py")
-
-          core_mkl = match.group(1)
-
-          if pyproject_mkl and pyproject_mkl != core_mkl:
-              raise RuntimeError(
-                  f"MKL version mismatch: pyproject has {pyproject_mkl}, pycanha-core uses {core_mkl}"
-              )
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-              f.write(f"mkl_version={core_mkl}\n")
-        shell: python
-        id: mkl
-
-      - name: Conan prepare bindings (Linux/Windows)
-        if: matrix.os != 'macos'
+      - name: Conan prepare
         run: |
           PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
           CORE="pycanha-project/pycanha-core"
           BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
           OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
-          MKL_OPTION="pycanha-core*:PYCANHA_OPTION_USE_MKL=True"
 
-          EXTRA_MKL_VERSION=""
-          if [ -n "${{ steps.mkl.outputs.mkl_version }}" ]; then
-            EXTRA_MKL_VERSION="-o pycanha-core*:PYCANHA_OPTION_MKL_VERSION=${{ steps.mkl.outputs.mkl_version }}"
+          USE_MKL=True
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            USE_MKL=False
           fi
 
           conan export "$CORE"
-          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
+          conan install "$BINDINGS" \
+            -pr:h="$PROFILE" -pr:b="$PROFILE" \
+            --build=missing \
+            -of "$OUTPUT" \
+            -o "pycanha-core*:PYCANHA_OPTION_USE_MKL=$USE_MKL"
         shell: bash
 
-      - name: Conan prepare bindings (macOS)
-        if: matrix.os == 'macos'
-        run: |
-          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
-          CORE="pycanha-project/pycanha-core"
-          BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
-          OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
-          MKL_OPTION="pycanha-core*:PYCANHA_OPTION_USE_MKL=False"
-
-          conan export "$CORE"
-          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
-        shell: bash
-
-      - name: Resolve Conan toolchain path
-        run: |
-          import os
-          from pathlib import Path
-
-          root = Path("pycanha-project/pycanha-core-python/build/conan-deps")
-          matches = [p for p in root.rglob("conan_toolchain.cmake") if "generators" in p.parts]
-
-          if not matches:
-              raise RuntimeError(f"No conan_toolchain.cmake found under {root}")
-
-          toolchain = str(matches[0].resolve()).replace("\\", "/")
-          print(f"Using Conan toolchain: {toolchain}")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-              f.write(f"path={toolchain}\n")
-        shell: python
-        id: toolchain
-
-      # Build/install pycanha-core-python bindings with test dependencies
-      - name: Build pycanha-core-python (Linux/Windows)
-        if: matrix.os != 'macos'
+      - name: Build and install
         run: |
           cd pycanha-project/pycanha-core-python
-          if [ "${{ matrix.os }}" = "ubuntu" ]; then
-            export CC=gcc-14
-            export CXX=g++-14
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          EXTRAS=".[test,build]"
+          if [ "${{ matrix.os }}" != "macos" ]; then
+            EXTRAS=".[test,build,mkl]"
           fi
-          pip install .[test,build,mkl] --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
+          pip install $EXTRAS \
+            --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
-      - name: Build pycanha-core-python (macOS)
-        if: matrix.os == 'macos'
-      # MKL is disabled on macOS in the Conan pre-step.
-        run: |
-          cd pycanha-project/pycanha-core-python
-          pip install .[test,build] --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
-        shell: bash
-
-      # Run tests
       - name: Run tests
-        run: |
-          cd pycanha-project/pycanha-core-python
-          pytest
+        run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
 
-      # Build wheels
-      - name: Build sddist and wheels
+      - name: Build wheels
         run: |
           cd pycanha-project/pycanha-core-python
-          if [ "${{ matrix.os }}" = "ubuntu" ]; then
-            export CC=gcc-14
-            export CXX=g++-14
-          fi
-          python -m build -Ccmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          python -m build \
+            -Ccmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
-      # Repair wheel with auditwheel (only for Ubuntu)
       - name: Repair wheel with auditwheel
         if: matrix.os == 'ubuntu'
         run: |
-          cd pycanha-project/pycanha-core-python/dist   
-          # Install auditwheel
+          cd pycanha-project/pycanha-core-python/dist
           python -m pip install auditwheel
-          # Install patchelf
-          sudo apt-get update
-          sudo apt-get install patchelf
-          # Repair the wheel
+          sudo apt-get update && sudo apt-get install -y patchelf
           for whl in *.whl; do
             auditwheel repair "$whl" --plat manylinux_2_39_x86_64 -w output
           done
-          # Remove the original, non-repaired wheels
           rm *.whl
-          # Move repaired wheels to dist for artifact upload
           mv output/* .
           rm -r output
+        shell: bash
 
-
-      # Upload the artifacts wheels
       - uses: actions/upload-artifact@v4
         with:
           name: pycanha-dist-files-${{ matrix.os }}-${{ matrix.python-version }}
@@ -232,7 +145,7 @@ jobs:
     name: Publish to PyPI
     needs: [build-matrix]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: pypi
       url: https://pypi.org/p/pycanha-core
     permissions:
@@ -241,10 +154,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          # unpacks all "pycanha-dist-files" artifacts into dist/
           pattern: pycanha-dist-files*
           path: dist
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-
