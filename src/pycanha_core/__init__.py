@@ -19,6 +19,7 @@ from typing import List
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
 _USE_MKL = util.find_spec("mkl") is not None
+_DLL_DIR_HANDLES = []
 
 
 def _pip_mkl_dirs() -> List[Path]:
@@ -76,7 +77,9 @@ def _prepare_mkl_runtime() -> None:
     if os.name == "nt":
         for directory in mkl_dirs:
             try:
-                os.add_dll_directory(str(directory))
+                # Keep handles alive for the process lifetime; otherwise
+                # Python may remove the directory from the DLL search path.
+                _DLL_DIR_HANDLES.append(os.add_dll_directory(str(directory)))
             except (OSError, AttributeError):
                 continue
         _MKL_READY = True
