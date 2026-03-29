@@ -124,7 +124,7 @@ jobs:
           conan export "$CORE"
           conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
           conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
-          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -o "$MKL_OPTION" $EXTRA_MKL_VERSION
+          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
         shell: bash
 
       - name: Conan prepare pycanha-core and bindings (macOS)
@@ -139,7 +139,7 @@ jobs:
           conan export "$CORE"
           conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
           conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION"
-          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -o "$MKL_OPTION"
+          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
         shell: bash
 
       # Build/install pycanha-core-python bindings with test dependencies

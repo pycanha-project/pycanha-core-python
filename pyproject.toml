@@ -32,18 +32,19 @@ mkl = ["mkl==2025.3.1"]
 [tool.scikit-build]
 cmake.version = ">=3.25"
 ninja.version = ">=1.5"
+cmake.source-dir = "src/pycanha_core_bindings"
 
 # Fallback on gmake/make if available and ninja is missing (Unix). Will only
 # fallback on platforms without a known ninja wheel.
 ninja.make-fallback = false
 
-# Extra args for CMake. Pip, unlike build, does not support lists, so semicolon
-# can be used to separate. Setting this in config or envvar will override the
-# entire list. See also cmake.define.
-cmake.args = ["--preset=conan-release", "-S", "src/pycanha_core_bindings"]
+# Use Conan's generated toolchain from the explicit CI pre-step location.
+# This path is stable because workflow conan install for bindings uses
+# `-of build/conan-deps` and a Release profile.
+cmake.args = ["-DCMAKE_TOOLCHAIN_FILE=build/conan-deps/build/Release/generators/conan_toolchain.cmake"]
 
 # This activates verbose builds
-cmake.verbose = true
+build.verbose = true
 
 # This controls the CMake build type
 cmake.build-type = "Release"
