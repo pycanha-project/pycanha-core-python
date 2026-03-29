@@ -192,6 +192,7 @@ jobs:
             export CXX=g++-14
           fi
           python -m build -Ccmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
+        shell: bash
 
       # Repair wheel with auditwheel (only for Ubuntu)
       - name: Repair wheel with auditwheel
