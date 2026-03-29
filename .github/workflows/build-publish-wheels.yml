@@ -183,7 +183,7 @@ jobs:
           sudo apt-get install patchelf
           # Repair the wheel
           for whl in *.whl; do
-            auditwheel repair "$whl" --plat manylinux_2_34_x86_64 -w output
+            auditwheel repair "$whl" --plat manylinux_2_39_x86_64 -w output
           done
           # Remove the original, non-repaired wheels
           rm *.whl
