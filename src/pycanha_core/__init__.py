@@ -12,13 +12,13 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
-from importlib import import_module
+from importlib import import_module, util
 from pathlib import Path
 from typing import List
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
-_USE_MKL = True
+_USE_MKL = util.find_spec("mkl") is not None
 
 
 def _pip_mkl_dirs() -> List[Path]:

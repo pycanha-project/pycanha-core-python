@@ -23,12 +23,12 @@ jobs:
     steps:
       # Setup the directories
       - name: Setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install python dependencies
-        run: python -m pip install toml conan cmake ninja
+        run: python -m pip install conan cmake ninja
 
       - name: Setup directories
         run: |
@@ -44,40 +44,118 @@ jobs:
           echo "CXX=clang++" >> "$GITHUB_ENV"
 
       - name: Check out pycanha-core-python repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: pycanha-project/pycanha-core-python
 
-      - name: Get version from pyproject.toml and Set Environment Variable
+      - name: Get metadata from pyproject.toml
         run: |
-          import toml
-          pyproject = toml.load('pycanha-project/pycanha-core-python/pyproject.toml')
-          version = ".".join(pyproject['project']['version'].split(".")[:2])
-          print(f"::set-output name=version::{version}")
+          import os
+          import tomllib
+          from pathlib import Path
+
+          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
+          pyproject = tomllib.loads(pyproject_path.read_text())
+
+          version = ".".join(pyproject["project"]["version"].split(".")[:2])
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"version={version}\n")
         shell: python
-        id: get_version
+        id: metadata
 
       - name: Check out pycanha-core repo at version
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
-          ref: v${{ steps.get_version.outputs.version }}
+          ref: v${{ steps.metadata.outputs.version }}
+
+      - name: Resolve and validate MKL version
+        run: |
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
+          core_conanfile_path = Path("pycanha-project/pycanha-core/conanfile.py")
+
+          pyproject = tomllib.loads(pyproject_path.read_text())
+          mkl_deps = pyproject.get("project", {}).get("optional-dependencies", {}).get("mkl", [])
+
+          pyproject_mkl = ""
+          for dep in mkl_deps:
+              if dep.startswith("mkl=="):
+                  pyproject_mkl = dep.split("==", 1)[1]
+                  break
+
+          core_text = core_conanfile_path.read_text()
+          match = re.search(r'"mkl"\s*:\s*"([^\"]+)"', core_text)
+          if match is None:
+              raise RuntimeError("Could not extract MKL version from pycanha-core conanfile.py")
+
+          core_mkl = match.group(1)
+
+          if pyproject_mkl and pyproject_mkl != core_mkl:
+              raise RuntimeError(
+                  f"MKL version mismatch: pyproject has {pyproject_mkl}, pycanha-core uses {core_mkl}"
+              )
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"mkl_version={core_mkl}\n")
+        shell: python
+        id: mkl
+
+      - name: Conan prepare pycanha-core and bindings (Linux/Windows)
+        if: matrix.os != 'macos'
+        run: |
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          CORE="pycanha-project/pycanha-core"
+          BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
+          OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
+          MKL_OPTION="pycanha-core*:PYCANHA_OPTION_USE_MKL=True"
+
+          EXTRA_MKL_VERSION=""
+          if [ -n "${{ steps.mkl.outputs.mkl_version }}" ]; then
+            EXTRA_MKL_VERSION="-o pycanha-core*:PYCANHA_OPTION_MKL_VERSION=${{ steps.mkl.outputs.mkl_version }}"
+          fi
+
+          conan export "$CORE"
+          conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
+          conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
+          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -o "$MKL_OPTION" $EXTRA_MKL_VERSION
+        shell: bash
+
+      - name: Conan prepare pycanha-core and bindings (macOS)
+        if: matrix.os == 'macos'
+        run: |
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          CORE="pycanha-project/pycanha-core"
+          BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
+          OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
+          MKL_OPTION="pycanha-core*:PYCANHA_OPTION_USE_MKL=False"
+
+          conan export "$CORE"
+          conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
+          conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION"
+          conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -o "$MKL_OPTION"
+        shell: bash
 
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python (Linux/Windows)
         if: matrix.os != 'macos'
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build,mkl] --config-settings PYCANHA_OPTION_USE_MKL=true
+          pip install .[test,build,mkl]
         shell: bash
 
       - name: Build pycanha-core-python (macOS)
         if: matrix.os == 'macos'
-      # I need to put false for MKL on mac because by default, pycanha-core conan recipe uses MKL
+      # MKL is disabled on macOS in the Conan pre-step.
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build] --config-settings PYCANHA_OPTION_USE_MKL=false
+          pip install .[test,build]
         shell: bash
 
       # Run tests
