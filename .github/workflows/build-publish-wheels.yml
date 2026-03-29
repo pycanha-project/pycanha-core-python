@@ -107,7 +107,7 @@ jobs:
         shell: python
         id: mkl
 
-      - name: Conan prepare pycanha-core and bindings (Linux/Windows)
+      - name: Conan prepare bindings (Linux/Windows)
         if: matrix.os != 'macos'
         run: |
           PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
@@ -122,12 +122,10 @@ jobs:
           fi
 
           conan export "$CORE"
-          conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
-          conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
           conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION" $EXTRA_MKL_VERSION
         shell: bash
 
-      - name: Conan prepare pycanha-core and bindings (macOS)
+      - name: Conan prepare bindings (macOS)
         if: matrix.os == 'macos'
         run: |
           PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
@@ -137,30 +135,37 @@ jobs:
           MKL_OPTION="pycanha-core*:PYCANHA_OPTION_USE_MKL=False"
 
           conan export "$CORE"
-          conan install "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
-          conan build "$CORE" -pr:h="$PROFILE" -pr:b="$PROFILE" -of "$OUTPUT" -o "$MKL_OPTION"
           conan install "$BINDINGS" -pr:h="$PROFILE" -pr:b="$PROFILE" --build=missing -of "$OUTPUT" -o "$MKL_OPTION"
         shell: bash
 
-      - name: Verify Conan toolchain exists
+      - name: Resolve Conan toolchain path
         run: |
-          TOOLCHAIN_FILE="$PWD/pycanha-project/pycanha-core-python/build/conan-deps/build/Release/generators/conan_toolchain.cmake"
-          if [ ! -f "$TOOLCHAIN_FILE" ]; then
-            echo "Expected Conan toolchain not found: $TOOLCHAIN_FILE"
-            echo "Generated files under build/conan-deps:" 
-            find pycanha-project/pycanha-core-python/build/conan-deps -maxdepth 5 -type f | head -n 200
-            exit 1
-          fi
-          echo "Conan toolchain: $TOOLCHAIN_FILE"
-        shell: bash
+          import os
+          from pathlib import Path
+
+          root = Path("pycanha-project/pycanha-core-python/build/conan-deps")
+          matches = [p for p in root.rglob("conan_toolchain.cmake") if "generators" in p.parts]
+
+          if not matches:
+              raise RuntimeError(f"No conan_toolchain.cmake found under {root}")
+
+          toolchain = str(matches[0].resolve()).replace("\\", "/")
+          print(f"Using Conan toolchain: {toolchain}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"path={toolchain}\n")
+        shell: python
+        id: toolchain
 
       # Build/install pycanha-core-python bindings with test dependencies
       - name: Build pycanha-core-python (Linux/Windows)
         if: matrix.os != 'macos'
         run: |
           cd pycanha-project/pycanha-core-python
-          TOOLCHAIN_FILE="$PWD/build/conan-deps/build/Release/generators/conan_toolchain.cmake"
-          pip install .[test,build,mkl] --config-settings=cmake.args="-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE"
+          if [ "${{ matrix.os }}" = "ubuntu" ]; then
+            export CC=gcc-14
+            export CXX=g++-14
+          fi
+          pip install .[test,build,mkl] --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
         shell: bash
 
       - name: Build pycanha-core-python (macOS)
@@ -168,8 +173,7 @@ jobs:
       # MKL is disabled on macOS in the Conan pre-step.
         run: |
           cd pycanha-project/pycanha-core-python
-          TOOLCHAIN_FILE="$PWD/build/conan-deps/build/Release/generators/conan_toolchain.cmake"
-          pip install .[test,build] --config-settings=cmake.args="-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE"
+          pip install .[test,build] --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
         shell: bash
 
       # Run tests
@@ -183,8 +187,11 @@ jobs:
       - name: Build sddist and wheels
         run: |
           cd pycanha-project/pycanha-core-python
-          TOOLCHAIN_FILE="$PWD/build/conan-deps/build/Release/generators/conan_toolchain.cmake"
-          python -m build -Ccmake.args="-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE"
+          if [ "${{ matrix.os }}" = "ubuntu" ]; then
+            export CC=gcc-14
+            export CXX=g++-14
+          fi
+          python -m build -Ccmake.define.CMAKE_TOOLCHAIN_FILE="${{ steps.toolchain.outputs.path }}"
 
       # Repair wheel with auditwheel (only for Ubuntu)
       - name: Repair wheel with auditwheel
