@@ -5,14 +5,16 @@
 #include <string>
 #include <vector>
 
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
+#include <nanobind/stl/shared_ptr.h>
 
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/nodes.hpp"
 
-namespace py = pybind11;
-using namespace pybind11::literals; // NOLINT(build/namespaces)
+namespace nb = nanobind;
+using namespace nanobind::literals; // NOLINT(build/namespaces)
 
 using pycanha::Node;
 using pycanha::Nodes;
@@ -20,51 +22,51 @@ using pycanha::NodeType;
 
 namespace pycanha::bindings::tmm {
 
-inline void Node_b(py::module_ &m) {
-  py::enum_<NodeType>(m, "NodeType")
+inline void Node_b(nb::module_ &m) {
+  nb::enum_<NodeType>(m, "NodeType")
       .value("DIFFUSIVE", NodeType::DIFFUSIVE_NODE)
       .value("BOUNDARY", NodeType::BOUNDARY_NODE)
       .export_values();
 
-  py::class_<Node>(m, "Node")
-      .def(py::init<int>(), "node_num"_a, "Create an unassociated node")
-      .def(py::init<const Node &>(), "Copy constructor")
-      .def_property("node_num", &Node::get_node_num, &Node::set_node_num)
-      .def_property(
+  nb::class_<Node>(m, "Node")
+      .def(nb::init<int>(), "node_num"_a, "Create an unassociated node")
+      .def(nb::init<const Node &>(), "Copy constructor")
+      .def_prop_rw("node_num", &Node::get_node_num, &Node::set_node_num)
+      .def_prop_rw(
           "type",
           [](Node &self) { return static_cast<NodeType>(self.get_type()); },
           [](Node &self, NodeType node_type) {
             self.set_type(static_cast<char>(node_type));
           })
-      .def_property("T", &Node::get_T, &Node::set_T)
-      .def_property("C", &Node::get_C, &Node::set_C)
-      .def_property("capacity", &Node::get_C, &Node::set_C,
+      .def_prop_rw("T", &Node::get_T, &Node::set_T)
+      .def_prop_rw("C", &Node::get_C, &Node::set_C)
+      .def_prop_rw("capacity", &Node::get_C, &Node::set_C,
                     "Thermal capacity alias")
-      .def_property("qs", &Node::get_qs, &Node::set_qs)
-      .def_property("qa", &Node::get_qa, &Node::set_qa)
-      .def_property("qe", &Node::get_qe, &Node::set_qe)
-      .def_property("qi", &Node::get_qi, &Node::set_qi)
-      .def_property("qr", &Node::get_qr, &Node::set_qr)
-      .def_property("a", &Node::get_a, &Node::set_a)
-      .def_property("fx", &Node::get_fx, &Node::set_fx)
-      .def_property("fy", &Node::get_fy, &Node::set_fy)
-      .def_property("fz", &Node::get_fz, &Node::set_fz)
-      .def_property("eps", &Node::get_eps, &Node::set_eps)
-      .def_property("aph", &Node::get_aph, &Node::set_aph)
-      .def_property("literal_C", &Node::get_literal_C, &Node::set_literal_C)
+      .def_prop_rw("qs", &Node::get_qs, &Node::set_qs)
+      .def_prop_rw("qa", &Node::get_qa, &Node::set_qa)
+      .def_prop_rw("qe", &Node::get_qe, &Node::set_qe)
+      .def_prop_rw("qi", &Node::get_qi, &Node::set_qi)
+      .def_prop_rw("qr", &Node::get_qr, &Node::set_qr)
+      .def_prop_rw("a", &Node::get_a, &Node::set_a)
+      .def_prop_rw("fx", &Node::get_fx, &Node::set_fx)
+      .def_prop_rw("fy", &Node::get_fy, &Node::set_fy)
+      .def_prop_rw("fz", &Node::get_fz, &Node::set_fz)
+      .def_prop_rw("eps", &Node::get_eps, &Node::set_eps)
+      .def_prop_rw("aph", &Node::get_aph, &Node::set_aph)
+      .def_prop_rw("literal_C", &Node::get_literal_C, &Node::set_literal_C)
       .def("int_node_num", &Node::get_int_node_num)
       .def(
           "parent_pointer",
           [](Node &self) { return self.get_parent_pointer().lock(); },
-          py::return_value_policy::reference)
+          nb::rv_policy::reference)
       .def("parent_pointer_address", &Node::get_int_parent_pointer,
            "Unsigned integer with the parent Nodes memory address");
 }
 
-inline void Nodes_b(py::module_ &m) {
-  py::class_<Nodes, std::shared_ptr<Nodes>>(m, "Nodes")
-      .def(py::init<>())
-      .def_property(
+inline void Nodes_b(nb::module_ &m) {
+  nb::class_<Nodes>(m, "Nodes")
+      .def(nb::init<>())
+      .def_prop_rw(
           "estimated_number_of_nodes",
           [](Nodes &self) { return self.estimated_number_of_nodes; },
           [](Nodes &self, int value) {
@@ -116,12 +118,12 @@ inline void Nodes_b(py::module_ &m) {
       .def("get_idx_from_node_num", &Nodes::get_idx_from_node_num, "node_num"_a)
       .def("get_node_num_from_idx", &Nodes::get_node_num_from_idx, "idx"_a)
       .def("get_node_from_node_num", &Nodes::get_node_from_node_num,
-           py::return_value_policy::move, "node_num"_a)
+           nb::rv_policy::move, "node_num"_a)
       .def("get_node_from_idx", &Nodes::get_node_from_idx,
-           py::return_value_policy::move, "idx"_a)
-      .def_property_readonly("num_nodes", &Nodes::get_num_nodes)
-      .def_property_readonly("num_diff_nodes", &Nodes::get_num_diff_nodes)
-      .def_property_readonly("num_bound_nodes", &Nodes::get_num_bound_nodes)
+           nb::rv_policy::move, "idx"_a)
+      .def_prop_ro("num_nodes", &Nodes::get_num_nodes)
+      .def_prop_ro("num_diff_nodes", &Nodes::get_num_diff_nodes)
+      .def_prop_ro("num_bound_nodes", &Nodes::get_num_bound_nodes)
       .def("is_mapped", &Nodes::is_mapped)
       .def(
           "get_T_value_pointer",
@@ -216,7 +218,7 @@ inline void Nodes_b(py::module_ &m) {
           "node_num"_a);
 }
 
-inline void register_nodes(py::module_ &m) {
+inline void register_nodes(nb::module_ &m) {
   Node_b(m);
   Nodes_b(m);
 }

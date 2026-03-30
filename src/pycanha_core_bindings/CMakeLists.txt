@@ -6,16 +6,17 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-project(pybind11_template)
+project(nanobind_template)
 
-find_package(pybind11 CONFIG REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(nanobind CONFIG REQUIRED)
 find_package(pycanha-core CONFIG REQUIRED)
 
-pybind11_add_module(pycanha_core MODULE
+nanobind_add_module(pycanha_core MODULE
     pycanha-core-wrapper.cpp
 )
 
-target_link_libraries(pycanha_core PRIVATE pybind11::module pycanha-core::pycanha-core)
+target_link_libraries(pycanha_core PRIVATE pycanha-core::pycanha-core)
 set_target_properties(pycanha_core PROPERTIES
     BUILD_RPATH "\$ORIGIN/../../.."
     INSTALL_RPATH "\$ORIGIN/../../.."
