@@ -32,7 +32,7 @@ install(
     PATTERN "py.typed"
 )
 
-# Generate type stubs from the compiled extension module
+# Generate type stubs from the compiled extension module.
 set(STUB_DIR "${CMAKE_CURRENT_BINARY_DIR}/stubs")
 
 nanobind_add_stub(
@@ -75,6 +75,31 @@ nanobind_add_stub(
     PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
     DEPENDS pycanha_core
 )
+
+if(WIN32)
+    get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
+    set(STUBGEN_PATH_ENTRIES
+        "$<TARGET_FILE_DIR:pycanha_core>"
+        "${PYTHON_BIN_DIR}"
+        "${PYTHON_BIN_DIR}/DLLs"
+        "${PYTHON_BIN_DIR}/Library/bin"
+    )
+    list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
+    list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH)
+
+    foreach(_stub_target IN ITEMS
+        pycanha_core_init_stub
+        pycanha_core_gmm_stub
+        pycanha_core_tmm_stub
+        pycanha_core_parameters_stub
+        pycanha_core_solvers_stub)
+        set_property(
+            TARGET ${_stub_target}
+            PROPERTY RULE_LAUNCH_CUSTOM
+                "${CMAKE_COMMAND} -E env \"PATH=${STUBGEN_PATH};$ENV{PATH}\""
+        )
+    endforeach()
+endif()
 
 # Install generated stubs
 install(
