@@ -2,9 +2,9 @@
 #pragma once
 #include <nanobind/eigen/dense.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
-#include <nanobind/stl/shared_ptr.h>
 
 #include "pycanha-core/gmm/geometrymodel.hpp"
 
@@ -14,15 +14,16 @@ using namespace pycanha::gmm;
 
 void GeometryModel_b(nb::module_ &m) {
   nb::class_<GeometryModel>(m, "GeometryModel",
-                             "Top-level container for the geometry model.")
+                            "Top-level container for the geometry model.")
       .def(nb::init<>())
       .def(nb::init<std::string>(), "name"_a)
       .def("create_geometry_item", &GeometryModel::create_geometry_item,
            "name"_a, "primitive"_a, "transformation"_a, "thermal_mesh"_a)
       .def("create_geometry_group", &GeometryModel::create_geometry_group,
-           "name"_a)
+           "name"_a, "geometries"_a, "transformation"_a)
       .def("create_geometry_group_cutted",
-           &GeometryModel::create_geometry_group_cutted, "name"_a)
+           &GeometryModel::create_geometry_group_cutted, "name"_a,
+           "geometries"_a, "cutting_geometry_items"_a, "transformation"_a)
       .def("callback_primitive_changed",
            &GeometryModel::callback_primitive_changed)
       .def("get_root_geometry_group", &GeometryModel::get_root_geometry_group)
