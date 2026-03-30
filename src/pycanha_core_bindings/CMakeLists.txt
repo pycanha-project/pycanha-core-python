@@ -37,6 +37,13 @@ set(STUB_DIR "${CMAKE_CURRENT_BINARY_DIR}/stubs")
 
 function(pycanha_add_stub target_name module_name output_file)
     if(WIN32)
+        execute_process(
+            COMMAND "${Python_EXECUTABLE}" -c
+                    "import os, nanobind; print(os.path.join(os.path.dirname(nanobind.__file__), 'stubgen.py'))"
+            OUTPUT_VARIABLE NB_STUBGEN
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+
         get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
         set(STUBGEN_PATH_ENTRIES
             "$<TARGET_FILE_DIR:pycanha_core>"
@@ -51,6 +58,8 @@ function(pycanha_add_stub target_name module_name output_file)
         list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
         list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH_PREFIX)
         set(STUBGEN_PATH "${STUBGEN_PATH_PREFIX};$ENV{PATH}")
+        # CMake lists use ';' separators: escape them so PATH is passed as one env value.
+        string(REPLACE ";" "\\;" STUBGEN_PATH_ESCAPED "${STUBGEN_PATH}")
 
         set(_outputs "${output_file}")
         set(_stubgen_args -q -i "$<TARGET_FILE_DIR:pycanha_core>" -m "${module_name}" -o "${output_file}")
@@ -63,10 +72,10 @@ function(pycanha_add_stub target_name module_name output_file)
         add_custom_command(
             OUTPUT ${_outputs}
             COMMAND ${CMAKE_COMMAND} -E env
-                    "PATH=${STUBGEN_PATH}"
-                    "${Python_EXECUTABLE}" -m nanobind.stubgen ${_stubgen_args}
+                    "PATH=${STUBGEN_PATH_ESCAPED}"
+                    "${Python_EXECUTABLE}" "${NB_STUBGEN}" ${_stubgen_args}
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS pycanha_core
+            DEPENDS pycanha_core "${NB_STUBGEN}"
             VERBATIM
         )
 
