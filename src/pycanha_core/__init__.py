@@ -13,12 +13,20 @@ import ctypes
 import os
 import sys
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import List
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
 _MKL_READY = False
-_USE_MKL = True
+
+try:
+    version("mkl")
+    _USE_MKL = True
+except PackageNotFoundError:
+    _USE_MKL = False
+
+_DLL_DIR_HANDLES = []
 
 
 def _pip_mkl_dirs() -> List[Path]:
@@ -76,7 +84,9 @@ def _prepare_mkl_runtime() -> None:
     if os.name == "nt":
         for directory in mkl_dirs:
             try:
-                os.add_dll_directory(str(directory))
+                # Keep handles alive for the process lifetime; otherwise
+                # Python may remove the directory from the DLL search path.
+                _DLL_DIR_HANDLES.append(os.add_dll_directory(str(directory)))
             except (OSError, AttributeError):
                 continue
         _MKL_READY = True

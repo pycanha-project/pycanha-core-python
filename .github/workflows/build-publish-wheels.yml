@@ -21,14 +21,13 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      # Setup the directories
       - name: Setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install python dependencies
-        run: python -m pip install toml conan cmake ninja
+        run: python -m pip install conan cmake ninja
 
       - name: Setup directories
         run: |
@@ -37,84 +36,99 @@ jobs:
           mkdir pycanha-core pycanha-core-python
         shell: bash
 
-      - name: Configure Apple Clang
+      - name: Configure compiler (Linux)
+        if: matrix.os == 'ubuntu'
+        run: |
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+
+      - name: Configure compiler (macOS)
         if: matrix.os == 'macos'
         run: |
           echo "CC=clang" >> "$GITHUB_ENV"
           echo "CXX=clang++" >> "$GITHUB_ENV"
 
       - name: Check out pycanha-core-python repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: pycanha-project/pycanha-core-python
 
-      - name: Get version from pyproject.toml and Set Environment Variable
+      - name: Get version from pyproject.toml
         run: |
-          import toml
-          pyproject = toml.load('pycanha-project/pycanha-core-python/pyproject.toml')
-          version = ".".join(pyproject['project']['version'].split(".")[:2])
-          print(f"::set-output name=version::{version}")
+          import os, tomllib
+          from pathlib import Path
+          pyproject = tomllib.loads(Path("pycanha-project/pycanha-core-python/pyproject.toml").read_text())
+          version = ".".join(pyproject["project"]["version"].split(".")[:2])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={version}\n")
         shell: python
-        id: get_version
+        id: metadata
 
       - name: Check out pycanha-core repo at version
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
-          ref: v${{ steps.get_version.outputs.version }}
+          ref: v${{ steps.metadata.outputs.version }}
 
-      # Build/install pycanha-core-python bindings with test dependencies
-      - name: Build pycanha-core-python (Linux/Windows)
-        if: matrix.os != 'macos'
+      - name: Conan prepare
         run: |
-          cd pycanha-project/pycanha-core-python
-          pip install .[test,build,mkl] --config-settings PYCANHA_OPTION_USE_MKL=true
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          CORE="pycanha-project/pycanha-core"
+          BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
+          OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
+
+          USE_MKL=True
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            USE_MKL=False
+          fi
+
+          conan export "$CORE"
+          conan install "$BINDINGS" \
+            -pr:h="$PROFILE" -pr:b="$PROFILE" \
+            --build=missing \
+            -of "$OUTPUT" \
+            -o "pycanha-core*:PYCANHA_OPTION_USE_MKL=$USE_MKL"
         shell: bash
 
-      - name: Build pycanha-core-python (macOS)
-        if: matrix.os == 'macos'
-      # I need to put false for MKL on mac because by default, pycanha-core conan recipe uses MKL
+      - name: Build and install
         run: |
           cd pycanha-project/pycanha-core-python
-          pip install .[test,build] --config-settings PYCANHA_OPTION_USE_MKL=false
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          EXTRAS=".[test,build]"
+          if [ "${{ matrix.os }}" != "macos" ]; then
+            EXTRAS=".[test,build,mkl]"
+          fi
+          pip install $EXTRAS \
+            --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
-      # Run tests
       - name: Run tests
-        run: |
-          cd pycanha-project/pycanha-core-python
-          pytest
+        run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
 
-      # Build wheels
-      - name: Build sddist and wheels
+      - name: Build wheels
         run: |
           cd pycanha-project/pycanha-core-python
-          python -m build
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          python -m build \
+            -Ccmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
+        shell: bash
 
-      # Repair wheel with auditwheel (only for Ubuntu)
       - name: Repair wheel with auditwheel
         if: matrix.os == 'ubuntu'
         run: |
-          cd pycanha-project/pycanha-core-python/dist   
-          # Install auditwheel
+          cd pycanha-project/pycanha-core-python/dist
           python -m pip install auditwheel
-          # Install patchelf
-          sudo apt-get update
-          sudo apt-get install patchelf
-          # Repair the wheel
+          sudo apt-get update && sudo apt-get install -y patchelf
           for whl in *.whl; do
-            auditwheel repair "$whl" --plat manylinux_2_34_x86_64 -w output
+            auditwheel repair "$whl" --plat manylinux_2_39_x86_64 -w output
           done
-          # Remove the original, non-repaired wheels
           rm *.whl
-          # Move repaired wheels to dist for artifact upload
           mv output/* .
           rm -r output
+        shell: bash
 
-
-      # Upload the artifacts wheels
       - uses: actions/upload-artifact@v4
         with:
           name: pycanha-dist-files-${{ matrix.os }}-${{ matrix.python-version }}
@@ -131,7 +145,7 @@ jobs:
     name: Publish to PyPI
     needs: [build-matrix]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: pypi
       url: https://pypi.org/p/pycanha-core
     permissions:
@@ -140,10 +154,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          # unpacks all "pycanha-dist-files" artifacts into dist/
           pattern: pycanha-dist-files*
           path: dist
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-
