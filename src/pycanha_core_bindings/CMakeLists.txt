@@ -1,12 +1,11 @@
 
 cmake_minimum_required(VERSION 3.25)
 
-# Set the C++ standard globally
+project(pycanha_core_bindings LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-project(nanobind_template)
 
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_package(nanobind CONFIG REQUIRED)
@@ -25,12 +24,11 @@ set_target_properties(pycanha_core PROPERTIES
 install(TARGETS pycanha_core DESTINATION pycanha_core)
 
 install(
-    FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/__init__.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/__init__.pyi
-        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/gmm.pyi
-        ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/tmm.pyi
-    DESTINATION
-        pycanha_core
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../pycanha_core/
+    DESTINATION pycanha_core
+    FILES_MATCHING
+    PATTERN "*.py"
+    PATTERN "*.pyi"
+    PATTERN "py.typed"
 )
 

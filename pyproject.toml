@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "pycanha-core"
 version = "0.7.0"
-description = "Python bindings for pycanha-core with Pybind11"
+description = "Python bindings for pycanha-core with nanobind"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
 requires-python = ">=3.12"
@@ -31,69 +31,9 @@ mkl = ["mkl==2025.3.1"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
-ninja.version = ">=1.5"
 cmake.source-dir = "src/pycanha_core_bindings"
-
-# Fallback on gmake/make if available and ninja is missing (Unix). Will only
-# fallback on platforms without a known ninja wheel.
-ninja.make-fallback = false
-
-# This activates verbose builds
-build.verbose = true
-
-# This controls the CMake build type
 cmake.build-type = "Release"
-
-# Display logs at or above this level.
-logging.level = "WARNING"
-
-# If set to True, try to build a reproducible distribution (Unix and Python 3.9+
-# recommended).  ``SOURCE_DATE_EPOCH`` will be used for timestamps, or a fixed
-# value if not set.
-sdist.reproducible = true
-
-# Explicitly disable auto-discovery of Python packages; this distribution ships
-# only a compiled extension module.
+build.verbose = true
 wheel.packages = []
-
-# The Python tags. The default (empty string) will use the default Python
-# version. You can also set this to "cp37" to enable the CPython 3.7+ Stable ABI
-# / Limited API (only on CPython and if the version is sufficient, otherwise
-# this has no effect). Or you can set it to "py3" or "py2.py3" to ignore Python
-# ABI compatibility. The ABI tag is inferred from this tag.
-wheel.py-api = ""
-
-# Setting this to true will expand tags (universal2 will add Intel and Apple
-# Silicon tags, for pip <21.0.1 compatibility).
-wheel.expand-macos-universal-tags = false
-
-# This allows you to change the install dir, such as to the package name. The
-# original dir is still at SKBUILD_PLATLIB_DIR (also SKBUILD_DATA_DIR, etc. are
-# available)
 wheel.install-dir = "."
-
-# A list of license files to include in the wheel. Supports glob patterns.
-wheel.license-files = ["LICEN[CS]E*", "COPYING*", "NOTICE*", "AUTHORS*"]
-
-# This will backport an internal copy of FindPython if CMake is less than this
-# value. Set to 0 or the empty string to disable. The default will be kept in
-# sync with the version of FindPython stored in scikit-build-core.
-backport.find-python = "3.26.1"
-
-# Select the editable mode to use. Can be "redirect" (default) or "inplace".
-editable.mode = "redirect"
-
-# Rebuild the project when the package is imported. The build-directory must be
-# set.
-editable.rebuild = false
-
-# Display output on stderr while rebuilding on import
-editable.verbose = true
-
-# Strictly check all config options. If False, warnings will be printed for
-# unknown options. If True, an error will be raised.
-strict-config = false
-
-# The build directory. Defaults to a temporary directory, but can be set.
-build-dir = ""
 
