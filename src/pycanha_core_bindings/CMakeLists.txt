@@ -37,45 +37,82 @@ set(STUB_DIR "${CMAKE_CURRENT_BINARY_DIR}/stubs")
 
 function(pycanha_add_stub target_name module_name output_file)
     if(WIN32)
-        execute_process(
-            COMMAND "${Python_EXECUTABLE}" -c
-                    "import os, nanobind; print(os.path.join(os.path.dirname(nanobind.__file__), 'stubgen.py'))"
-            OUTPUT_VARIABLE NB_STUBGEN
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
+        set(STUBGEN_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/pycanha_stubgen_wrapper.py")
+        if(NOT EXISTS "${STUBGEN_WRAPPER}")
+            file(WRITE "${STUBGEN_WRAPPER}" [=[
+import argparse
+import os
+import sys
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--module", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--import-path", required=True)
+    parser.add_argument("--marker", default=None)
+    parser.add_argument("--dll-dir", action="append", default=[])
+    args = parser.parse_args()
+
+    for dll_dir in args.dll_dir:
+        if dll_dir and os.path.isdir(dll_dir):
+            try:
+                os.add_dll_directory(dll_dir)
+            except OSError:
+                pass
+
+    import nanobind.stubgen as stubgen
+
+    argv = [
+        "stubgen.py",
+        "-q",
+        "-i",
+        args.import_path,
+        "-m",
+        args.module,
+        "-o",
+        args.output,
+    ]
+
+    if args.marker:
+        argv.extend(["-M", args.marker])
+
+    sys.argv = argv
+    stubgen.main()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+]=])
+        endif()
 
         get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
-        set(STUBGEN_PATH_ENTRIES
-            "$<TARGET_FILE_DIR:pycanha_core>"
-            "${PYTHON_BIN_DIR}"
-            "${PYTHON_BIN_DIR}/DLLs"
-            "${PYTHON_BIN_DIR}/Library/bin"
-            "${PYTHON_BIN_DIR}/Lib/site-packages/mkl"
-            "${PYTHON_BIN_DIR}/Lib/site-packages/umf"
-            "${PYTHON_BIN_DIR}/Lib/site-packages/tbb"
-        )
-
-        list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
-        list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH_PREFIX)
-        set(STUBGEN_PATH "${STUBGEN_PATH_PREFIX};$ENV{PATH}")
-        # CMake lists use ';' separators: escape them so PATH is passed as one env value.
-        string(REPLACE ";" "\\;" STUBGEN_PATH_ESCAPED "${STUBGEN_PATH}")
 
         set(_outputs "${output_file}")
-        set(_stubgen_args -q -i "$<TARGET_FILE_DIR:pycanha_core>" -m "${module_name}" -o "${output_file}")
+        set(_stubgen_args
+            --module "${module_name}"
+            --output "${output_file}"
+            --import-path "$<TARGET_FILE_DIR:pycanha_core>"
+            --dll-dir "$<TARGET_FILE_DIR:pycanha_core>"
+            --dll-dir "${PYTHON_BIN_DIR}"
+            --dll-dir "${PYTHON_BIN_DIR}/DLLs"
+            --dll-dir "${PYTHON_BIN_DIR}/Library/bin"
+            --dll-dir "${PYTHON_BIN_DIR}/Lib/site-packages/mkl"
+            --dll-dir "${PYTHON_BIN_DIR}/Lib/site-packages/umf"
+            --dll-dir "${PYTHON_BIN_DIR}/Lib/site-packages/tbb"
+        )
 
         if(ARGC GREATER 3)
-            list(APPEND _stubgen_args -M "${ARGV3}")
+            list(APPEND _stubgen_args --marker "${ARGV3}")
             list(APPEND _outputs "${ARGV3}")
         endif()
 
         add_custom_command(
             OUTPUT ${_outputs}
-            COMMAND ${CMAKE_COMMAND} -E env
-                    "PATH=${STUBGEN_PATH_ESCAPED}"
-                    "${Python_EXECUTABLE}" "${NB_STUBGEN}" ${_stubgen_args}
+            COMMAND "${Python_EXECUTABLE}" "${STUBGEN_WRAPPER}" ${_stubgen_args}
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS pycanha_core "${NB_STUBGEN}"
+            DEPENDS pycanha_core "${STUBGEN_WRAPPER}"
             VERBATIM
         )
 
