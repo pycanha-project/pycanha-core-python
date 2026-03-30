@@ -35,71 +35,84 @@ install(
 # Generate type stubs from the compiled extension module.
 set(STUB_DIR "${CMAKE_CURRENT_BINARY_DIR}/stubs")
 
-nanobind_add_stub(
-    pycanha_core_init_stub
-    MODULE pycanha_core
-    OUTPUT "${STUB_DIR}/__init__.pyi"
-    PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
-    DEPENDS pycanha_core
-    MARKER_FILE "${STUB_DIR}/py.typed"
-)
-
-nanobind_add_stub(
-    pycanha_core_gmm_stub
-    MODULE pycanha_core.gmm
-    OUTPUT "${STUB_DIR}/gmm.pyi"
-    PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
-    DEPENDS pycanha_core
-)
-
-nanobind_add_stub(
-    pycanha_core_tmm_stub
-    MODULE pycanha_core.tmm
-    OUTPUT "${STUB_DIR}/tmm.pyi"
-    PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
-    DEPENDS pycanha_core
-)
-
-nanobind_add_stub(
-    pycanha_core_parameters_stub
-    MODULE pycanha_core.parameters
-    OUTPUT "${STUB_DIR}/parameters.pyi"
-    PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
-    DEPENDS pycanha_core
-)
-
-nanobind_add_stub(
-    pycanha_core_solvers_stub
-    MODULE pycanha_core.solvers
-    OUTPUT "${STUB_DIR}/solvers.pyi"
-    PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
-    DEPENDS pycanha_core
-)
-
-if(WIN32)
-    get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
-    set(STUBGEN_PATH_ENTRIES
-        "$<TARGET_FILE_DIR:pycanha_core>"
-        "${PYTHON_BIN_DIR}"
-        "${PYTHON_BIN_DIR}/DLLs"
-        "${PYTHON_BIN_DIR}/Library/bin"
-    )
-    list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
-    list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH)
-
-    foreach(_stub_target IN ITEMS
-        pycanha_core_init_stub
-        pycanha_core_gmm_stub
-        pycanha_core_tmm_stub
-        pycanha_core_parameters_stub
-        pycanha_core_solvers_stub)
-        set_property(
-            TARGET ${_stub_target}
-            PROPERTY RULE_LAUNCH_CUSTOM
-                "${CMAKE_COMMAND} -E env \"PATH=${STUBGEN_PATH};$ENV{PATH}\""
+function(pycanha_add_stub target_name module_name output_file)
+    if(WIN32)
+        get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
+        execute_process(
+            COMMAND "${Python_EXECUTABLE}" -c
+                    "import os, site; targets={'mkl_intel_lp64_dll.dll','mkl_core_dll.dll','mkl_intel_thread_dll.dll','libiomp5md.dll'}; roots=set(site.getsitepackages() + [site.getusersitepackages()]); out=set();\
+for r in roots:\
+    if not os.path.isdir(r):\
+        continue\
+    for dp, _, files in os.walk(r):\
+        fl=set(files)\
+        if targets & fl:\
+            out.add(dp)\
+print(';'.join(sorted(out)))"
+            OUTPUT_VARIABLE PYTHON_DLL_DIRS
+            OUTPUT_STRIP_TRAILING_WHITESPACE
         )
-    endforeach()
-endif()
+
+        set(STUBGEN_PATH_ENTRIES
+            "$<TARGET_FILE_DIR:pycanha_core>"
+            "$<TARGET_LINKER_FILE_DIR:pycanha-core::pycanha-core>"
+            "${PYTHON_BIN_DIR}"
+            "${PYTHON_BIN_DIR}/DLLs"
+            "${PYTHON_BIN_DIR}/Library/bin"
+        )
+        if(PYTHON_DLL_DIRS)
+            list(APPEND STUBGEN_PATH_ENTRIES ${PYTHON_DLL_DIRS})
+        endif()
+        list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
+        list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH_PREFIX)
+        set(STUBGEN_PATH "${STUBGEN_PATH_PREFIX};$ENV{PATH}")
+
+        set(_outputs "${output_file}")
+        set(_stubgen_args -q -i "$<TARGET_FILE_DIR:pycanha_core>" -m "${module_name}" -o "${output_file}")
+
+        if(ARGC GREATER 3)
+            list(APPEND _stubgen_args -M "${ARGV3}")
+            list(APPEND _outputs "${ARGV3}")
+        endif()
+
+        add_custom_command(
+            OUTPUT ${_outputs}
+            COMMAND ${CMAKE_COMMAND} -E env
+                    "PATH=${STUBGEN_PATH}"
+                    "${Python_EXECUTABLE}" -m nanobind.stubgen ${_stubgen_args}
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            DEPENDS pycanha_core
+            VERBATIM
+        )
+
+        add_custom_target(${target_name} ALL DEPENDS ${_outputs})
+    else()
+        if(ARGC GREATER 3)
+            nanobind_add_stub(
+                ${target_name}
+                MODULE ${module_name}
+                OUTPUT "${output_file}"
+                PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+                DEPENDS pycanha_core
+                MARKER_FILE "${ARGV3}"
+            )
+        else()
+            nanobind_add_stub(
+                ${target_name}
+                MODULE ${module_name}
+                OUTPUT "${output_file}"
+                PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+                DEPENDS pycanha_core
+            )
+        endif()
+    endif()
+endfunction()
+
+pycanha_add_stub(pycanha_core_init_stub pycanha_core "${STUB_DIR}/__init__.pyi" "${STUB_DIR}/py.typed")
+pycanha_add_stub(pycanha_core_gmm_stub pycanha_core.gmm "${STUB_DIR}/gmm.pyi")
+pycanha_add_stub(pycanha_core_tmm_stub pycanha_core.tmm "${STUB_DIR}/tmm.pyi")
+pycanha_add_stub(pycanha_core_parameters_stub pycanha_core.parameters "${STUB_DIR}/parameters.pyi")
+pycanha_add_stub(pycanha_core_solvers_stub pycanha_core.solvers "${STUB_DIR}/solvers.pyi")
 
 # Install generated stubs
 install(
