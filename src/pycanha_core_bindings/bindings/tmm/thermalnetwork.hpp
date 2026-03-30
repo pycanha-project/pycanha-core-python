@@ -8,7 +8,7 @@
 #include "pycanha-core/tmm/thermalnetwork.hpp"
 
 namespace nb = nanobind;
-using namespace nanobind::literals;  // NOLINT(build/namespaces)
+using namespace nanobind::literals; // NOLINT(build/namespaces)
 
 using pycanha::ConductiveCouplings;
 using pycanha::Node;
@@ -19,17 +19,17 @@ using pycanha::ThermalNetwork;
 namespace pycanha::bindings::tmm {
 
 inline void ThermalNetwork_b(nb::module_ &m) {
-  nb::class_<ThermalNetwork>(m,
-                                                             "ThermalNetwork")
+  nb::class_<ThermalNetwork>(m, "ThermalNetwork",
+                             "Thermal network (nodes + couplings).")
       .def(nb::init<>())
-      .def(nb::init<std::shared_ptr<Nodes>, std::shared_ptr<ConductiveCouplings>,
-                    std::shared_ptr<RadiativeCouplings>>(),
-           "nodes"_a, "conductive"_a, "radiative"_a)
+      .def(
+          nb::init<std::shared_ptr<Nodes>, std::shared_ptr<ConductiveCouplings>,
+                   std::shared_ptr<RadiativeCouplings>>(),
+          "nodes"_a, "conductive"_a, "radiative"_a)
       .def("add_node", &ThermalNetwork::add_node, "node"_a)
       .def("remove_node", &ThermalNetwork::remove_node, "node_num"_a)
       .def_prop_ro(
-          "nodes",
-          [](ThermalNetwork &self) -> Nodes & { return self.nodes(); },
+          "nodes", [](ThermalNetwork &self) -> Nodes & { return self.nodes(); },
           nb::rv_policy::reference_internal)
       .def_prop_ro(
           "conductive_couplings",
@@ -51,4 +51,4 @@ inline void ThermalNetwork_b(nb::module_ &m) {
 
 inline void register_thermalnetwork(nb::module_ &m) { ThermalNetwork_b(m); }
 
-}  // namespace pycanha::bindings::tmm
+} // namespace pycanha::bindings::tmm

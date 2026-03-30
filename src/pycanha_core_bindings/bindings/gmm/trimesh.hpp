@@ -19,7 +19,7 @@ using namespace nanobind::literals;
 using namespace pycanha::gmm::trimesher;
 
 void TriMesh_b(nb::module_ &m) {
-  nb::class_<TriMesh>(m, "TriMesh")
+  nb::class_<TriMesh>(m, "TriMesh", "Triangulated surface mesh.")
       .def(nb::init<VerticesList, TrianglesList, FaceIdsList, EdgesList,
                     EdgesIdsList, FaceEdges>())
       .def("get_vertices",
@@ -71,7 +71,8 @@ void TriMesh_b(nb::module_ &m) {
 }
 
 void TriMeshModel_b(nb::module_ &m) {
-  nb::class_<TriMeshModel>(m, "TriMeshModel")
+  nb::class_<TriMeshModel>(m, "TriMeshModel",
+                           "Unified triangle mesh for the full model.")
       .def(nb::init<>())
       .def("get_face_cumareas", &TriMeshModel::get_cumareas)
       .def_prop_rw("vertices", nb::overload_cast<>(&TriMeshModel::get_vertices),
@@ -125,10 +126,16 @@ void TriMeshModel_b(nb::module_ &m) {
 }
 
 void primitive_meshers_b(nb::module_ &m) {
-  m.def("cdt_trimesher", &cdt_trimesher, "trimesh"_a);
-  m.def("create_2d_rectangular_mesh", &create_2d_rectangular_mesh);
-  m.def("create_2d_quadrilateral_mesh", &create_2d_quadrilateral_mesh);
-  m.def("create_2d_triangular_only_mesh", &create_2d_triangular_only_mesh);
-  m.def("create_2d_triangular_mesh", &create_2d_triangular_mesh);
-  m.def("create_2d_disc_mesh", &create_2d_disc_mesh);
+  m.def("cdt_trimesher", &cdt_trimesher, "trimesh"_a,
+        "Refine a TriMesh using constrained Delaunay triangulation.");
+  m.def("create_2d_rectangular_mesh", &create_2d_rectangular_mesh,
+        "Generate a 2D rectangular mesh.");
+  m.def("create_2d_quadrilateral_mesh", &create_2d_quadrilateral_mesh,
+        "Generate a 2D quadrilateral mesh.");
+  m.def("create_2d_triangular_only_mesh", &create_2d_triangular_only_mesh,
+        "Generate a 2D mesh with triangles only.");
+  m.def("create_2d_triangular_mesh", &create_2d_triangular_mesh,
+        "Generate a 2D triangular mesh.");
+  m.def("create_2d_disc_mesh", &create_2d_disc_mesh,
+        "Generate a 2D disc mesh.");
 }

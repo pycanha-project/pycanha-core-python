@@ -28,7 +28,7 @@ inline void register_thermal_data(nb::module_ &m) {
   using pycanha::ThermalData;
   using pycanha::ThermalNetwork;
 
-  nb::class_<ThermalData>(m, "ThermalData")
+  nb::class_<ThermalData>(m, "ThermalData", "Class for storing thermal data.")
       .def(nb::init<>())
       .def(nb::init<std::shared_ptr<ThermalNetwork>>(), "network"_a)
       .def("associate", &ThermalData::associate, "network"_a)
@@ -71,7 +71,8 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalNetwork;
 
-  nb::class_<ThermalMathematicalModel>(m, "ThermalMathematicalModel")
+  nb::class_<ThermalMathematicalModel>(m, "ThermalMathematicalModel",
+                                       "Thermal Mathematical Model (TMM).")
       .def(nb::init<std::string>(), "model_name"_a)
       .def(nb::init<std::string, std::shared_ptr<Nodes>,
                     std::shared_ptr<ConductiveCouplings>,

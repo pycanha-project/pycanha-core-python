@@ -87,5 +87,6 @@ NB_MODULE(pycanha_core, m) {
     m.attr("NodeType") = tmm_submodule.attr("NodeType");
   }
 
-  m.def("print_package_info", &print_package_info);
+  m.def("print_package_info", &print_package_info,
+        "Print build and dependency information.");
 }

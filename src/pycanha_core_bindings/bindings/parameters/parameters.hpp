@@ -60,7 +60,7 @@ inline void register_parameters(nb::module_ &m) {
         [](const auto &item) -> nb::object { return nb::cast(item); }, value);
   };
 
-  nb::class_<Parameters>(m, "Parameters")
+  nb::class_<Parameters>(m, "Parameters", "Parameters storage.")
       .def(nb::init<>())
       .def(
           "add_parameter",
@@ -105,7 +105,8 @@ inline void register_entities(nb::module_ &m) {
   using pycanha::ThermalEntity;
   using pycanha::ThermalNetwork;
 
-  nb::class_<ThermalEntity>(m, "ThermalEntity")
+  nb::class_<ThermalEntity>(m, "ThermalEntity",
+                            "Reference to a value in the thermal network.")
       .def_prop_ro("type", &ThermalEntity::type,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("node_index_1", &ThermalEntity::node_index_1)
@@ -122,21 +123,24 @@ inline void register_entities(nb::module_ &m) {
         return std::shared_ptr<ThermalEntity>(std::move(cloned));
       });
 
-  nb::class_<AttributeEntity, ThermalEntity>(m, "AttributeEntity")
+  nb::class_<AttributeEntity, ThermalEntity>(
+      m, "AttributeEntity", "Entity referencing a node attribute.")
       .def(nb::init<ThermalNetwork &, std::string, int>(), "network"_a,
            "attribute"_a, "node"_a, nb::keep_alive<1, 2>())
       .def("get_value", &AttributeEntity::get_value)
       .def("set_value", &AttributeEntity::set_value, "value"_a);
 
   nb::class_<ConductiveCouplingEntity, ThermalEntity>(
-      m, "ConductiveCouplingEntity")
+      m, "ConductiveCouplingEntity",
+      "Entity referencing a conductive coupling value.")
       .def(nb::init<ThermalNetwork &, int, int>(), "network"_a, "node_1"_a,
            "node_2"_a, nb::keep_alive<1, 2>())
       .def("get_value", &ConductiveCouplingEntity::get_value)
       .def("set_value", &ConductiveCouplingEntity::set_value, "value"_a);
 
-  nb::class_<RadiativeCouplingEntity, ThermalEntity>(m,
-                                                     "RadiativeCouplingEntity")
+  nb::class_<RadiativeCouplingEntity, ThermalEntity>(
+      m, "RadiativeCouplingEntity",
+      "Entity referencing a radiative coupling value.")
       .def(nb::init<ThermalNetwork &, int, int>(), "network"_a, "node_1"_a,
            "node_2"_a, nb::keep_alive<1, 2>())
       .def("get_value", &RadiativeCouplingEntity::get_value)
@@ -152,7 +156,7 @@ inline void register_formulas(nb::module_ &m) {
   using pycanha::ThermalNetwork;
   using pycanha::ValueFormula;
 
-  nb::class_<Formula>(m, "Formula")
+  nb::class_<Formula>(m, "Formula", "Base class for a formula.")
       .def("compile_formula", &Formula::compile_formula)
       .def("apply_formula", &Formula::apply_formula)
       .def("apply_compiled_formula", &Formula::apply_compiled_formula)
@@ -177,7 +181,9 @@ inline void register_formulas(nb::module_ &m) {
         return std::shared_ptr<Formula>(std::move(cloned));
       });
 
-  nb::class_<ParameterFormula, Formula>(m, "ParameterFormula")
+  nb::class_<ParameterFormula, Formula>(
+      m, "ParameterFormula",
+      "Formula that copies a parameter value to an entity.")
       .def(nb::init<ThermalEntity &, Parameters &, std::string>(), "entity"_a,
            "parameters"_a, "parameter"_a, nb::keep_alive<1, 2>(),
            nb::keep_alive<1, 3>())
@@ -197,7 +203,8 @@ inline void register_formulas(nb::module_ &m) {
         return nb::cast(*values);
       });
 
-  nb::class_<ValueFormula, Formula>(m, "ValueFormula")
+  nb::class_<ValueFormula, Formula>(
+      m, "ValueFormula", "Formula that assigns a constant value to an entity.")
       .def(nb::init<ThermalEntity &>(), "entity"_a, nb::keep_alive<1, 2>())
       .def(nb::init<std::shared_ptr<ThermalEntity>>(), "entity"_a,
            nb::keep_alive<1, 2>())
@@ -215,7 +222,8 @@ inline void register_formulas(nb::module_ &m) {
            })
       .def("set_value", &ValueFormula::set_value, "value"_a);
 
-  nb::class_<Formulas>(m, "Formulas")
+  nb::class_<Formulas>(m, "Formulas",
+                       "Collection of formulas linking parameters to entities.")
       .def(nb::init<>())
       .def(nb::init<std::shared_ptr<ThermalNetwork>,
                     std::shared_ptr<Parameters>>(),

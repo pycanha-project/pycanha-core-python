@@ -9,13 +9,15 @@
 #include "pycanha-core/gmm/geometry.hpp"
 
 namespace nb = nanobind;
+using namespace nanobind::literals;
 using namespace pycanha::gmm;
 
 void Geometry_b(nb::module_ &m) {
-  nb::class_<Geometry>(m, "Geometry")
+  nb::class_<Geometry>(m, "Geometry", "Base class for geometry elements.")
       .def(nb::init<>())
-      .def(nb::init<std::string>())
-      .def(nb::init<std::string, TransformationPtr>())
+      .def(nb::init<std::string>(), "name"_a)
+      .def(nb::init<std::string, TransformationPtr>(), "name"_a,
+           "transformation"_a)
       .def_prop_rw("name", &Geometry::get_name, &Geometry::set_name)
       .def_prop_rw("transformation", &Geometry::get_transformation,
                    &Geometry::set_transformation)
@@ -23,18 +25,21 @@ void Geometry_b(nb::module_ &m) {
 }
 
 void GeometryItem_b(nb::module_ &m) {
-  nb::class_<GeometryItem, Geometry>(m, "GeometryItem")
+  nb::class_<GeometryItem, Geometry>(m, "GeometryItem", "Geometry item.")
       .def(nb::init<>())
-      .def(nb::init<std::string, PrimitivePtr, TransformationPtr>())
+      .def(nb::init<std::string, PrimitivePtr, TransformationPtr>(), "name"_a,
+           "primitive"_a, "transformation"_a)
       .def_prop_rw("primitive", &GeometryItem::get_primitive,
                    &GeometryItem::set_primitive);
 }
 
 void GeometryGroup_b(nb::module_ &m) {
-  nb::class_<GeometryGroup, Geometry>(m, "GeometryGroup")
+  nb::class_<GeometryGroup, Geometry>(
+      m, "GeometryGroup", "Collection of geometry items and sub-groups.")
       .def(nb::init<>())
-      .def(nb::init<std::string>())
-      .def(nb::init<std::string, GeometryPtrList, TransformationPtr>())
+      .def(nb::init<std::string>(), "name"_a)
+      .def(nb::init<std::string, GeometryPtrList, TransformationPtr>(),
+           "name"_a, "geometry_items"_a, "transformation"_a)
       .def_prop_rw("geometry_items", &GeometryGroup::get_geometry_items,
                    &GeometryGroup::set_geometry_items)
       .def_prop_rw("geometry_groups", &GeometryGroup::get_geometry_groups,
@@ -49,7 +54,8 @@ void GeometryGroup_b(nb::module_ &m) {
 }
 
 void GeometryGroupCutted_b(nb::module_ &m) {
-  nb::class_<GeometryGroupCutted, GeometryGroup>(m, "GeometryGroupCutted")
+  nb::class_<GeometryGroupCutted, GeometryGroup>(
+      m, "GeometryGroupCutted", "Geometry group with cutting items applied.")
       .def_prop_rw("cutting_geometry_items",
                    &GeometryGroupCutted::get_cutting_geometry_items,
                    &GeometryGroupCutted::set_cutting_geometry_items)
@@ -68,10 +74,12 @@ void GeometryGroupCutted_b(nb::module_ &m) {
 }
 
 void GeometryMeshedItem_b(nb::module_ &m) {
-  nb::class_<GeometryMeshedItem, GeometryItem>(m, "GeometryMeshedItem")
+  nb::class_<GeometryMeshedItem, GeometryItem>(
+      m, "GeometryMeshedItem", "Geometry item with an associated thermal mesh.")
       .def(nb::init<>())
       .def(nb::init<std::string, PrimitivePtr, TransformationPtr,
-                    ThermalMeshPtr>())
+                    ThermalMeshPtr>(),
+           "name"_a, "primitive"_a, "transformation"_a, "thermal_mesh"_a)
       .def_prop_rw("thermal_mesh", &GeometryMeshedItem::get_thermal_mesh,
                    &GeometryMeshedItem::set_thermal_mesh)
       .def_prop_rw("tri_mesh", &GeometryMeshedItem::get_tri_mesh,

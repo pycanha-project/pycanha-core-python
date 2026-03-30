@@ -6,9 +6,9 @@
 #include <vector>
 
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
-#include <nanobind/stl/shared_ptr.h>
 
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/nodes.hpp"
@@ -23,14 +23,14 @@ using pycanha::NodeType;
 namespace pycanha::bindings::tmm {
 
 inline void Node_b(nb::module_ &m) {
-  nb::enum_<NodeType>(m, "NodeType")
+  nb::enum_<NodeType>(m, "NodeType", "Thermal node type.")
       .value("DIFFUSIVE", NodeType::DIFFUSIVE_NODE)
       .value("BOUNDARY", NodeType::BOUNDARY_NODE)
       .export_values();
 
-  nb::class_<Node>(m, "Node")
-      .def(nb::init<int>(), "node_num"_a, "Create an unassociated node")
-      .def(nb::init<const Node &>(), "Copy constructor")
+  nb::class_<Node>(m, "Node", "Thermal node class.")
+      .def(nb::init<int>(), "node_num"_a, "Create an unassociated node.")
+      .def(nb::init<const Node &>(), "other"_a, "Copy constructor.")
       .def_prop_rw("node_num", &Node::get_node_num, &Node::set_node_num)
       .def_prop_rw(
           "type",
@@ -41,7 +41,7 @@ inline void Node_b(nb::module_ &m) {
       .def_prop_rw("T", &Node::get_T, &Node::set_T)
       .def_prop_rw("C", &Node::get_C, &Node::set_C)
       .def_prop_rw("capacity", &Node::get_C, &Node::set_C,
-                    "Thermal capacity alias")
+                   "Alias for C (thermal capacity).")
       .def_prop_rw("qs", &Node::get_qs, &Node::set_qs)
       .def_prop_rw("qa", &Node::get_qa, &Node::set_qa)
       .def_prop_rw("qe", &Node::get_qe, &Node::set_qe)
@@ -60,11 +60,11 @@ inline void Node_b(nb::module_ &m) {
           [](Node &self) { return self.get_parent_pointer().lock(); },
           nb::rv_policy::reference)
       .def("parent_pointer_address", &Node::get_int_parent_pointer,
-           "Unsigned integer with the parent Nodes memory address");
+           "Memory address of the parent Nodes container.");
 }
 
 inline void Nodes_b(nb::module_ &m) {
-  nb::class_<Nodes>(m, "Nodes")
+  nb::class_<Nodes>(m, "Nodes", "Container for thermal nodes.")
       .def(nb::init<>())
       .def_prop_rw(
           "estimated_number_of_nodes",
@@ -119,8 +119,8 @@ inline void Nodes_b(nb::module_ &m) {
       .def("get_node_num_from_idx", &Nodes::get_node_num_from_idx, "idx"_a)
       .def("get_node_from_node_num", &Nodes::get_node_from_node_num,
            nb::rv_policy::move, "node_num"_a)
-      .def("get_node_from_idx", &Nodes::get_node_from_idx,
-           nb::rv_policy::move, "idx"_a)
+      .def("get_node_from_idx", &Nodes::get_node_from_idx, nb::rv_policy::move,
+           "idx"_a)
       .def_prop_ro("num_nodes", &Nodes::get_num_nodes)
       .def_prop_ro("num_diff_nodes", &Nodes::get_num_diff_nodes)
       .def_prop_ro("num_bound_nodes", &Nodes::get_num_bound_nodes)

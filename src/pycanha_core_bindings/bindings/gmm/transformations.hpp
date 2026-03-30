@@ -9,25 +9,28 @@
 #include "pycanha-core/gmm/transformations.hpp"
 
 namespace nb = nanobind;
+using namespace nanobind::literals;
 using namespace pycanha::gmm;
 
 void CoordinateTransformation_b(nb::module_ &m) {
-  // Bind the TransformOrder enum class
-  nb::enum_<TransformOrder>(m, "TransformOrder")
+  nb::enum_<TransformOrder>(m, "TransformOrder",
+                            "Order of translation and rotation operations.")
       .value("TRANSLATION_THEN_ROTATION",
              TransformOrder::TRANSLATION_THEN_ROTATION)
       .value("ROTATION_THEN_TRANSLATION",
              TransformOrder::ROTATION_THEN_TRANSLATION)
       .export_values();
 
-  // Bind the CoordinateTransformation class
-  nb::class_<CoordinateTransformation>(m, "CoordinateTransformation")
+  nb::class_<CoordinateTransformation>(
+      m, "CoordinateTransformation",
+      "Translation + rotation coordinate transformation.")
       .def(nb::init<>())
       .def(nb::init<Vector3D, Vector3D, TransformOrder>(),
            nb::arg("translation") = Vector3D::Zero(),
            nb::arg("rotation") = Vector3D::Zero(),
            nb::arg("order") = TransformOrder::TRANSLATION_THEN_ROTATION)
-      .def("transform_point", &CoordinateTransformation::transform_point)
+      .def("transform_point", &CoordinateTransformation::transform_point,
+           "point"_a, "Apply the transformation to a 3D point.")
       .def_prop_rw("translation", &CoordinateTransformation::get_translation,
                    &CoordinateTransformation::set_translation)
       .def_prop_rw("rotation", &CoordinateTransformation::get_rotation_matrix,
