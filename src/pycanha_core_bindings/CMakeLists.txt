@@ -38,31 +38,16 @@ set(STUB_DIR "${CMAKE_CURRENT_BINARY_DIR}/stubs")
 function(pycanha_add_stub target_name module_name output_file)
     if(WIN32)
         get_filename_component(PYTHON_BIN_DIR "${Python_EXECUTABLE}" DIRECTORY)
-        execute_process(
-            COMMAND "${Python_EXECUTABLE}" -c
-                    "import os, site; targets={'mkl_intel_lp64_dll.dll','mkl_core_dll.dll','mkl_intel_thread_dll.dll','libiomp5md.dll'}; roots=set(site.getsitepackages() + [site.getusersitepackages()]); out=set();\
-for r in roots:\
-    if not os.path.isdir(r):\
-        continue\
-    for dp, _, files in os.walk(r):\
-        fl=set(files)\
-        if targets & fl:\
-            out.add(dp)\
-print(';'.join(sorted(out)))"
-            OUTPUT_VARIABLE PYTHON_DLL_DIRS
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-
         set(STUBGEN_PATH_ENTRIES
             "$<TARGET_FILE_DIR:pycanha_core>"
-            "$<TARGET_LINKER_FILE_DIR:pycanha-core::pycanha-core>"
             "${PYTHON_BIN_DIR}"
             "${PYTHON_BIN_DIR}/DLLs"
             "${PYTHON_BIN_DIR}/Library/bin"
+            "${PYTHON_BIN_DIR}/Lib/site-packages/mkl"
+            "${PYTHON_BIN_DIR}/Lib/site-packages/umf"
+            "${PYTHON_BIN_DIR}/Lib/site-packages/tbb"
         )
-        if(PYTHON_DLL_DIRS)
-            list(APPEND STUBGEN_PATH_ENTRIES ${PYTHON_DLL_DIRS})
-        endif()
+
         list(REMOVE_DUPLICATES STUBGEN_PATH_ENTRIES)
         list(JOIN STUBGEN_PATH_ENTRIES ";" STUBGEN_PATH_PREFIX)
         set(STUBGEN_PATH "${STUBGEN_PATH_PREFIX};$ENV{PATH}")
