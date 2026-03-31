@@ -8,13 +8,13 @@ version = "0.7.0"
 description = "Python bindings for pycanha-core with nanobind"
 readme = "README.md"
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 classifiers = [
     #Add licence classifiers
     #Add development status classifiers
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = ['numpy>=2.4.0']
 

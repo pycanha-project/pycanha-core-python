@@ -14,7 +14,7 @@ jobs:
       fail-fast: False
       matrix:
         os: [ubuntu, macos]
-        python-version: [3.12, 3.13]
+        python-version: [3.13, 3.14]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     runs-on: ${{ matrix.os }}-latest
@@ -130,7 +130,7 @@ jobs:
         shell: bash
 
       - name: Extract stubs from wheel (Linux only)
-        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python
           mkdir -p stubs
@@ -151,7 +151,7 @@ jobs:
         shell: bash
 
       - name: Validate extracted stubs
-        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python/stubs
           for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi; do
@@ -162,7 +162,7 @@ jobs:
         shell: bash
 
       - name: Upload stubs artifact
-        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         uses: actions/upload-artifact@v4
         with:
           name: generated-stubs
@@ -174,7 +174,7 @@ jobs:
           path: pycanha-project/pycanha-core-python/dist/*.whl
 
       - name: Upload sdist
-        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         uses: actions/upload-artifact@v4
         with:
           name: pycanha-dist-files-sdist
@@ -185,7 +185,7 @@ jobs:
     strategy:
       fail-fast: False
       matrix:
-        python-version: [3.12, 3.13]
+        python-version: [3.13, 3.14]
 
     name: windows with Python ${{ matrix.python-version }} built and tests
     runs-on: windows-latest
