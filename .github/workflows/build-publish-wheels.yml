@@ -71,6 +71,26 @@ jobs:
           path: pycanha-project/pycanha-core
           ref: v${{ steps.metadata.outputs.version }}
 
+      - name: Check MKL version consistency
+        run: |
+          import re, tomllib
+          from pathlib import Path
+
+          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
+          conanfile_path = Path("pycanha-project/pycanha-core/conanfile.py")
+
+          pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+          pyproject_mkl = pyproject["project"]["optional-dependencies"]["mkl"][0].split("==", 1)[1]
+
+          conanfile_text = conanfile_path.read_text(encoding="utf-8")
+          core_mkl = re.search(r"['\"]mkl['\"]\s*:\s*['\"]([^'\"]+)['\"]", conanfile_text).group(1)
+          assert pyproject_mkl == core_mkl, (
+              f"MKL version mismatch: pyproject.toml has {pyproject_mkl}, pycanha-core has {core_mkl}"
+          )
+
+          print(f"MKL version check passed: {pyproject_mkl}")
+        shell: python
+
       - name: Conan prepare
         run: |
           PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
@@ -229,6 +249,26 @@ jobs:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
           ref: v${{ steps.metadata.outputs.version }}
+
+      - name: Check MKL version consistency
+        run: |
+          import re, tomllib
+          from pathlib import Path
+
+          pyproject_path = Path("pycanha-project/pycanha-core-python/pyproject.toml")
+          conanfile_path = Path("pycanha-project/pycanha-core/conanfile.py")
+
+          pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+          pyproject_mkl = pyproject["project"]["optional-dependencies"]["mkl"][0].split("==", 1)[1]
+
+          conanfile_text = conanfile_path.read_text(encoding="utf-8")
+          core_mkl = re.search(r"['\"]mkl['\"]\s*:\s*['\"]([^'\"]+)['\"]", conanfile_text).group(1)
+          assert pyproject_mkl == core_mkl, (
+              f"MKL version mismatch: pyproject.toml has {pyproject_mkl}, pycanha-core has {core_mkl}"
+          )
+
+          print(f"MKL version check passed: {pyproject_mkl}")
+        shell: python
 
       - name: Download pregenerated stubs
         uses: actions/download-artifact@v4
