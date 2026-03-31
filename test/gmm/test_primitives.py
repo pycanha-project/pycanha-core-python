@@ -5,15 +5,15 @@ import math
 import numpy as np
 import pytest
 
-from pycanha_core.gmm import (
-    Cone,
-    Cylinder,
-    Disc,
-    Quadrilateral,
-    Rectangle,
-    Sphere,
-    Triangle,
-)
+import pycanha_core as pcc
+
+Cone = pcc.gmm.Cone
+Cylinder = pcc.gmm.Cylinder
+Disc = pcc.gmm.Disc
+Quadrilateral = pcc.gmm.Quadrilateral
+Rectangle = pcc.gmm.Rectangle
+Sphere = pcc.gmm.Sphere
+Triangle = pcc.gmm.Triangle
 
 
 # ---------------------------------------------------------------------------

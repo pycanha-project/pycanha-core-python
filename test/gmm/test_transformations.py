@@ -5,7 +5,10 @@ import math
 import numpy as np
 import pytest
 
-from pycanha_core.gmm import CoordinateTransformation, TransformOrder
+import pycanha_core as pcc
+
+CoordinateTransformation = pcc.gmm.CoordinateTransformation
+TransformOrder = pcc.gmm.TransformOrder
 
 
 class TestCoordinateTransformation:
