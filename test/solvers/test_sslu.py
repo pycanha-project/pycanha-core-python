@@ -1,75 +1,69 @@
-import pycanha_core as pcc
+"""Test bindings for SSLU steady-state solver."""
+
 import numpy as np
+import pytest
 
-# Create a basic model to be solved
-tmm = pcc.tmm.ThermalMathematicalModel("test_model")
-
-# Create the nodes
-node_10 = pcc.tmm.Node(10)
-node_15 = pcc.tmm.Node(15)
-node_20 = pcc.tmm.Node(20)
-node_25 = pcc.tmm.Node(25)
-env_node = pcc.tmm.Node(99)
-
-# Set initial temperatures (in Kelvin)
-init_temp = 273.15
-
-node_10.T = init_temp
-node_15.T = init_temp
-node_20.T = init_temp
-node_25.T = init_temp
-env_node.T = 3.15
+import pycanha_core as pcc
 
 
-# Set thermal capacities (in J/K)
-node_10.capacity = 2e5
-node_15.capacity = 2e5
-node_20.capacity = 2e5
-node_25.capacity = 2e5
+class TestSSLU:
+    def test_construction(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        assert solver is not None
 
-# Set dissipation
-node_15.qi = 500.0
+    def test_solver_name(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        assert isinstance(solver.solver_name, str)
+        assert len(solver.solver_name) > 0
 
-# Set env node as boundary
-env_node.type = pcc.tmm.NodeType.BOUNDARY
+    def test_solver_properties_defaults(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        assert isinstance(solver.MAX_ITERS, int)
+        assert isinstance(solver.abstol_temp, float)
+        assert isinstance(solver.abstol_enrgy, float)
+        assert isinstance(solver.eps_capacity, float)
+        assert isinstance(solver.eps_coupling, float)
 
-# Add nodes to the model
-tmm.add_node(node_10)
-tmm.add_node(node_15)
-tmm.add_node(node_20)
-tmm.add_node(node_25)
-tmm.add_node(env_node)
+    def test_solver_properties_settable(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        solver.MAX_ITERS = 200
+        solver.abstol_temp = 1e-8
+        assert solver.MAX_ITERS == 200
+        assert solver.abstol_temp == pytest.approx(1e-8)
 
-# Create couplings between nodes (in W/K)
-tmm.add_conductive_coupling(10, 15, 0.1)
-tmm.add_conductive_coupling(20, 25, 0.1)
+    def test_solver_initialized_flag(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        assert solver.solver_initialized is False
 
-# Create radiative couplings
-tmm.add_radiative_coupling(10, 99, 1.0)
-tmm.add_radiative_coupling(20, 99, 1.0)
-tmm.add_radiative_coupling(15, 25, 0.2)
-tmm.add_radiative_coupling(15, 99, 0.8)
-tmm.add_radiative_coupling(25, 99, 0.8)
+    def test_full_solve_lifecycle(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        solver.MAX_ITERS = 100
+        solver.abstol_temp = 1e-6
 
-sslu_solver = pcc.solvers.SSLU(tmm)
+        solver.initialize()
+        assert solver.solver_initialized is True
 
-sslu_solver.MAX_ITERS = 100
-sslu_solver.abstol_temp = 1e-6
+        solver.solve()
+        assert solver.solver_converged is True
 
-sslu_solver.initialize()
-sslu_solver.solve()
+        solver.deinitialize()
+        assert solver.solver_initialized is False
 
-calculated_temps = np.array(
-    [
-        tmm.nodes.get_T(10),
-        tmm.nodes.get_T(15),
-        tmm.nodes.get_T(20),
-        tmm.nodes.get_T(25),
-        tmm.nodes.get_T(99),
-    ]
-)
+    def test_solve_temperatures(self, basic_tmm):
+        solver = pcc.solvers.SSLU(basic_tmm)
+        solver.MAX_ITERS = 100
+        solver.abstol_temp = 1e-6
 
-expected_temps = np.array([132.38706, 306.56526, 111.78443, 200.32387, 3.14999])
+        solver.initialize()
+        solver.solve()
+        solver.deinitialize()
 
-
-assert np.allclose(calculated_temps, expected_temps, atol=1e-2)
+        calculated = np.array([
+            basic_tmm.nodes.get_T(10),
+            basic_tmm.nodes.get_T(15),
+            basic_tmm.nodes.get_T(20),
+            basic_tmm.nodes.get_T(25),
+            basic_tmm.nodes.get_T(99),
+        ])
+        expected = np.array([132.38706, 306.56526, 111.78443, 200.32387, 3.14999])
+        np.testing.assert_allclose(calculated, expected, atol=1e-2)
