@@ -87,11 +87,10 @@ class TestTriangle:
 class TestRectangle:
     @pytest.fixture
     def rect(self):
-        # Rectangle(p1, p2, p3): p1=origin, p2=end of first edge, p3=corner
-        # For a valid rectangle, p1->p2 and p2->p3 must be perpendicular
+        # p1=origin, p2 and p3 define two edges from p1 (not consecutive corners)
         p1 = np.array([0.0, 0.0, 0.0])
         p2 = np.array([2.0, 0.0, 0.0])
-        p3 = np.array([2.0, 1.0, 0.0])
+        p3 = np.array([0.0, 1.0, 0.0])
         return Rectangle(p1, p2, p3)
 
     def test_construction(self, rect):
@@ -103,7 +102,7 @@ class TestRectangle:
     def test_vertices_roundtrip(self, rect):
         np.testing.assert_array_equal(rect.p1, [0, 0, 0])
         np.testing.assert_array_equal(rect.p2, [2, 0, 0])
-        np.testing.assert_array_equal(rect.p3, [2, 1, 0])
+        np.testing.assert_array_equal(rect.p3, [0, 1, 0])
 
     def test_vertex_setter(self, rect):
         new_p = np.array([5.0, 5.0, 5.0])
@@ -171,8 +170,7 @@ class TestCylinder:
         p1 = np.array([0.0, 0.0, 0.0])
         p2 = np.array([1.0, 0.0, 0.0])
         p3 = np.array([0.0, 1.0, 0.0])
-        return Cylinder(p1, p2, p3, radius=1.0, start_angle=0.0,
-                        end_angle=2 * math.pi)
+        return Cylinder(p1, p2, p3, radius=1.0, start_angle=0.0, end_angle=2 * math.pi)
 
     def test_construction_and_validity(self, cyl):
         assert isinstance(cyl, Cylinder)
@@ -208,8 +206,15 @@ class TestDisc:
         p1 = np.array([0.0, 0.0, 0.0])
         p2 = np.array([1.0, 0.0, 0.0])
         p3 = np.array([0.0, 1.0, 0.0])
-        return Disc(p1, p2, p3, inner_radius=0.5, outer_radius=2.0,
-                    start_angle=0.0, end_angle=2 * math.pi)
+        return Disc(
+            p1,
+            p2,
+            p3,
+            inner_radius=0.5,
+            outer_radius=2.0,
+            start_angle=0.0,
+            end_angle=2 * math.pi,
+        )
 
     def test_construction_and_validity(self, disc):
         assert isinstance(disc, Disc)
@@ -240,8 +245,9 @@ class TestCone:
         p1 = np.array([0.0, 0.0, 0.0])
         p2 = np.array([1.0, 0.0, 0.0])
         p3 = np.array([0.0, 1.0, 0.0])
-        return Cone(p1, p2, p3, radius1=1.0, radius2=0.5,
-                    start_angle=0.0, end_angle=2 * math.pi)
+        return Cone(
+            p1, p2, p3, radius1=1.0, radius2=0.5, start_angle=0.0, end_angle=2 * math.pi
+        )
 
     # TODO: Cone.is_valid() raises RuntimeError("Not implemented")
     def test_construction(self, cone):
@@ -273,9 +279,16 @@ class TestSphere:
         p2 = np.array([1.0, 0.0, 0.0])
         p3 = np.array([0.0, 1.0, 0.0])
         # TODO: Sphere rejects base_truncation == apex_truncation (e.g. both 0.0)
-        return Sphere(p1, p2, p3, radius=1.0, base_truncation=-0.9,
-                      apex_truncation=0.9, start_angle=0.0,
-                      end_angle=2 * math.pi)
+        return Sphere(
+            p1,
+            p2,
+            p3,
+            radius=1.0,
+            base_truncation=-0.9,
+            apex_truncation=0.9,
+            start_angle=0.0,
+            end_angle=2 * math.pi,
+        )
 
     def test_construction_and_validity(self, sphere):
         assert isinstance(sphere, Sphere)
