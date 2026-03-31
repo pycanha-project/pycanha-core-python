@@ -3,10 +3,12 @@
 #include <memory>
 #include <string>
 
-#include <pybind11/eigen.h>
-#include <pybind11/functional.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include <nanobind/eigen/dense.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/stl/function.h>
+#include <nanobind/stl/shared_ptr.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
 
 #include "pycanha-core/globals.hpp"
 #include "pycanha-core/parameters/formulas.hpp"
@@ -17,18 +19,18 @@
 #include "pycanha-core/tmm/thermalmathematicalmodel.hpp"
 #include "pycanha-core/tmm/thermalnetwork.hpp"
 
-namespace py = pybind11;
-using namespace pybind11::literals; // NOLINT(build/namespaces)
+namespace nb = nanobind;
+using namespace nanobind::literals; // NOLINT(build/namespaces)
 
 namespace pycanha::bindings::tmm {
 
-inline void register_thermal_data(py::module_ &m) {
+inline void register_thermal_data(nb::module_ &m) {
   using pycanha::ThermalData;
   using pycanha::ThermalNetwork;
 
-  py::class_<ThermalData, std::shared_ptr<ThermalData>>(m, "ThermalData")
-      .def(py::init<>())
-      .def(py::init<std::shared_ptr<ThermalNetwork>>(), "network"_a)
+  nb::class_<ThermalData>(m, "ThermalData", "Class for storing thermal data.")
+      .def(nb::init<>())
+      .def(nb::init<std::shared_ptr<ThermalNetwork>>(), "network"_a)
       .def("associate", &ThermalData::associate, "network"_a)
       .def("create_new_table", &ThermalData::create_new_table, "name"_a,
            "rows"_a, "cols"_a)
@@ -39,24 +41,24 @@ inline void register_thermal_data(py::module_ &m) {
           "get_table",
           [](ThermalData &self, const std::string &name)
               -> ThermalData::MatrixDataType & { return self.get_table(name); },
-          py::return_value_policy::reference_internal, "name"_a)
+          nb::rv_policy::reference_internal, "name"_a)
       .def(
           "get_table_const",
           [](const ThermalData &self,
              const std::string &name) -> const ThermalData::MatrixDataType & {
             return self.get_table(name);
           },
-          py::return_value_policy::reference_internal, "name"_a)
+          nb::rv_policy::reference_internal, "name"_a)
       .def("has_table", &ThermalData::has_table, "name"_a)
-      .def_property_readonly("network_ptr", &ThermalData::network_ptr)
-      .def_property_readonly(
+      .def_prop_ro("network_ptr", &ThermalData::network_ptr)
+      .def_prop_ro(
           "network",
           [](ThermalData &self) -> ThermalNetwork & { return *self.network(); },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly("size", &ThermalData::size);
+          nb::rv_policy::reference_internal)
+      .def_prop_ro("size", &ThermalData::size);
 }
 
-inline void register_thermal_mathematical_model(py::module_ &m) {
+inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::ConductiveCouplings;
   using pycanha::Coupling;
   using pycanha::Formulas;
@@ -69,22 +71,21 @@ inline void register_thermal_mathematical_model(py::module_ &m) {
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalNetwork;
 
-  py::class_<ThermalMathematicalModel,
-             std::shared_ptr<ThermalMathematicalModel>>(
-      m, "ThermalMathematicalModel")
-      .def(py::init<std::string>(), "model_name"_a)
-      .def(py::init<std::string, std::shared_ptr<Nodes>,
+  nb::class_<ThermalMathematicalModel>(m, "ThermalMathematicalModel",
+                                       "Thermal Mathematical Model (TMM).")
+      .def(nb::init<std::string>(), "model_name"_a)
+      .def(nb::init<std::string, std::shared_ptr<Nodes>,
                     std::shared_ptr<ConductiveCouplings>,
                     std::shared_ptr<RadiativeCouplings>>(),
            "model_name"_a, "nodes"_a, "conductive"_a, "radiative"_a)
-      .def(py::init<std::string, std::shared_ptr<Nodes>,
+      .def(nb::init<std::string, std::shared_ptr<Nodes>,
                     std::shared_ptr<ConductiveCouplings>,
                     std::shared_ptr<RadiativeCouplings>,
                     std::shared_ptr<Parameters>, std::shared_ptr<Formulas>,
                     std::shared_ptr<ThermalData>>(),
            "model_name"_a, "nodes"_a, "conductive"_a, "radiative"_a,
            "parameters"_a, "formulas"_a, "thermal_data"_a)
-      .def_property(
+      .def_prop_rw(
           "name",
           [](ThermalMathematicalModel &self) -> std::string & {
             return self.name;
@@ -92,62 +93,62 @@ inline void register_thermal_mathematical_model(py::module_ &m) {
           [](ThermalMathematicalModel &self, const std::string &v) {
             self.name = v;
           },
-          py::return_value_policy::reference_internal)
-      .def_property(
+          nb::rv_policy::reference_internal)
+      .def_prop_rw(
           "time",
           [](ThermalMathematicalModel &self) -> double & { return self.time; },
           [](ThermalMathematicalModel &self, double value) {
             self.time = value;
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "network",
           [](ThermalMathematicalModel &self) -> ThermalNetwork & {
             return self.network();
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "network_ptr",
           [](ThermalMathematicalModel &self) { return self.network_ptr(); })
-      .def_property_readonly(
+      .def_prop_ro(
           "nodes",
           [](ThermalMathematicalModel &self) -> Nodes & {
             return self.nodes();
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "nodes_ptr",
           [](ThermalMathematicalModel &self) { return self.nodes_ptr(); })
-      .def_property_readonly(
+      .def_prop_ro(
           "conductive_couplings",
           [](ThermalMathematicalModel &self) -> ConductiveCouplings & {
             return self.conductive_couplings();
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "radiative_couplings",
           [](ThermalMathematicalModel &self) -> RadiativeCouplings & {
             return self.radiative_couplings();
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "parameters",
           [](ThermalMathematicalModel &self) -> Parameters & {
             return self.parameters;
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "formulas",
           [](ThermalMathematicalModel &self) -> Formulas & {
             return self.formulas;
           },
-          py::return_value_policy::reference_internal)
-      .def_property_readonly(
+          nb::rv_policy::reference_internal)
+      .def_prop_ro(
           "thermal_data",
           [](ThermalMathematicalModel &self) -> ThermalData & {
             return self.thermal_data;
           },
-          py::return_value_policy::reference_internal)
+          nb::rv_policy::reference_internal)
       .def(
           "add_node",
           [](ThermalMathematicalModel &self, const Node &node) {
@@ -194,27 +195,25 @@ inline void register_thermal_mathematical_model(py::module_ &m) {
            &ThermalMathematicalModel::callback_transient_time_change)
       .def("callback_transient_after_timestep",
            &ThermalMathematicalModel::callback_transient_after_timestep)
-      .def_readwrite("callbacks_active",
-                     &ThermalMathematicalModel::callbacks_active)
-      .def_readwrite("internal_callbacks_active",
-                     &ThermalMathematicalModel::internal_callbacks_active)
-      .def_readwrite("c_callbacks_active",
-                     &ThermalMathematicalModel::c_callbacks_active)
-      .def_readwrite("python_callbacks_active",
-                     &ThermalMathematicalModel::python_callbacks_active)
-      .def_readwrite("python_formulas_active",
-                     &ThermalMathematicalModel::python_formulas_active)
-      .def_readwrite("python_apply_formulas",
-                     &ThermalMathematicalModel::python_apply_formulas)
-      .def_readwrite(
-          "python_extern_callback_solver_loop",
-          &ThermalMathematicalModel::python_extern_callback_solver_loop)
-      .def_readwrite("python_extern_callback_transient_time_change",
-                     &ThermalMathematicalModel::
-                         python_extern_callback_transient_time_change)
-      .def_readwrite("python_extern_callback_transient_after_timestep",
-                     &ThermalMathematicalModel::
-                         python_extern_callback_transient_after_timestep);
+      .def_rw("callbacks_active", &ThermalMathematicalModel::callbacks_active)
+      .def_rw("internal_callbacks_active",
+              &ThermalMathematicalModel::internal_callbacks_active)
+      .def_rw("c_callbacks_active",
+              &ThermalMathematicalModel::c_callbacks_active)
+      .def_rw("python_callbacks_active",
+              &ThermalMathematicalModel::python_callbacks_active)
+      .def_rw("python_formulas_active",
+              &ThermalMathematicalModel::python_formulas_active)
+      .def_rw("python_apply_formulas",
+              &ThermalMathematicalModel::python_apply_formulas)
+      .def_rw("python_extern_callback_solver_loop",
+              &ThermalMathematicalModel::python_extern_callback_solver_loop)
+      .def_rw("python_extern_callback_transient_time_change",
+              &ThermalMathematicalModel::
+                  python_extern_callback_transient_time_change)
+      .def_rw("python_extern_callback_transient_after_timestep",
+              &ThermalMathematicalModel::
+                  python_extern_callback_transient_after_timestep);
 }
 
 } // namespace pycanha::bindings::tmm
