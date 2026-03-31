@@ -150,6 +150,16 @@ jobs:
           ls -la stubs/
         shell: bash
 
+      - name: Validate extracted stubs
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        run: |
+          cd pycanha-project/pycanha-core-python/stubs
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi py.typed; do
+            test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
+          done
+          echo "All stubs valid"
+        shell: bash
+
       - name: Upload stubs artifact
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4
@@ -225,10 +235,13 @@ jobs:
           name: generated-stubs
           path: pycanha-project/pycanha-core-python/pregenerated-stubs
 
-      - name: Verify stubs
+      - name: Validate pregenerated stubs
         run: |
-          echo "Pregenerated stubs:"
-          ls -la pycanha-project/pycanha-core-python/pregenerated-stubs/
+          cd pycanha-project/pycanha-core-python/pregenerated-stubs
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi py.typed; do
+            test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
+          done
+          echo "All stubs valid"
         shell: bash
 
       - name: Conan prepare
