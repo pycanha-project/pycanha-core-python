@@ -1,3 +1,0 @@
-[submodule "src/my_lib/modern-cpp-lib-template"]
-	path = src/my_lib/modern-cpp-lib-template
-	url = https://github.com/jpiqueras/modern-cpp-lib-template.git
