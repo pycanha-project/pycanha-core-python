@@ -9,11 +9,11 @@ on:
     types:
       - published
 jobs:
-  build-matrix:
+  build-unix:
     strategy:
       fail-fast: False
       matrix:
-        os: [ubuntu, windows, macos]
+        os: [ubuntu, macos]
         python-version: [3.12, 3.13]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
@@ -129,6 +129,34 @@ jobs:
           rm -r output
         shell: bash
 
+      - name: Extract stubs from wheel (Linux only)
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        run: |
+          cd pycanha-project/pycanha-core-python
+          mkdir -p stubs
+          for whl in dist/*.whl; do
+            python -c "
+          import zipfile, sys, shutil
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              for name in z.namelist():
+                  if name.startswith('pycanha_core/') and (name.endswith('.pyi') or name.endswith('py.typed')):
+                      target = 'stubs/' + name.split('/', 1)[1]
+                      with z.open(name) as src, open(target, 'wb') as dst:
+                          shutil.copyfileobj(src, dst)
+          " "$whl"
+            break  # only need one wheel
+          done
+          echo "Extracted stubs:"
+          ls -la stubs/
+        shell: bash
+
+      - name: Upload stubs artifact
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-stubs
+          path: pycanha-project/pycanha-core-python/stubs/
+
       - uses: actions/upload-artifact@v4
         with:
           name: pycanha-dist-files-${{ matrix.os }}-${{ matrix.python-version }}
@@ -141,9 +169,115 @@ jobs:
           name: pycanha-dist-files-sdist
           path: pycanha-project/pycanha-core-python/dist/*.tar.gz
 
+  build-windows:
+    needs: [build-unix]
+    strategy:
+      fail-fast: False
+      matrix:
+        python-version: [3.12, 3.13]
+
+    name: windows with Python ${{ matrix.python-version }} built and tests
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install python dependencies
+        run: python -m pip install conan cmake ninja
+
+      - name: Setup directories
+        run: |
+          mkdir pycanha-project
+          cd pycanha-project
+          mkdir pycanha-core pycanha-core-python
+        shell: bash
+
+      - name: Check out pycanha-core-python repo
+        uses: actions/checkout@v4
+        with:
+          path: pycanha-project/pycanha-core-python
+
+      - name: Get version from pyproject.toml
+        run: |
+          import os, tomllib
+          from pathlib import Path
+          pyproject = tomllib.loads(Path("pycanha-project/pycanha-core-python/pyproject.toml").read_text())
+          version = ".".join(pyproject["project"]["version"].split(".")[:2])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={version}\n")
+        shell: python
+        id: metadata
+
+      - name: Check out pycanha-core repo at version
+        uses: actions/checkout@v4
+        with:
+          repository: pycanha-project/pycanha-core
+          path: pycanha-project/pycanha-core
+          ref: v${{ steps.metadata.outputs.version }}
+
+      - name: Download pregenerated stubs
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-stubs
+          path: pycanha-project/pycanha-core-python/pregenerated-stubs
+
+      - name: Verify stubs
+        run: |
+          echo "Pregenerated stubs:"
+          ls -la pycanha-project/pycanha-core-python/pregenerated-stubs/
+        shell: bash
+
+      - name: Conan prepare
+        run: |
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          CORE="pycanha-project/pycanha-core"
+          BINDINGS="pycanha-project/pycanha-core-python/src/pycanha_core_bindings"
+          OUTPUT="pycanha-project/pycanha-core-python/build/conan-deps"
+
+          conan export "$CORE"
+          conan install "$BINDINGS" \
+            -pr:h="$PROFILE" -pr:b="$PROFILE" \
+            --build=missing \
+            -of "$OUTPUT" \
+            -o "pycanha-core*:PYCANHA_OPTION_USE_MKL=True"
+        shell: bash
+
+      - name: Build and install
+        run: |
+          cd pycanha-project/pycanha-core-python
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          STUBS_DIR="$(pwd)/pregenerated-stubs"
+          pip install ".[test,build,mkl]" \
+            --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+            --config-settings=cmake.define.PYCANHA_PREGENERATED_STUBS_DIR="$STUBS_DIR"
+        shell: bash
+
+      - name: Run tests
+        run: cd pycanha-project/pycanha-core-python && pytest
+        shell: bash
+
+      - name: Build wheels
+        run: |
+          cd pycanha-project/pycanha-core-python
+          TOOLCHAIN="$(pwd)/build/conan-deps/conan_toolchain.cmake"
+          STUBS_DIR="$(pwd)/pregenerated-stubs"
+          python -m build \
+            -Ccmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+            -Ccmake.define.PYCANHA_PREGENERATED_STUBS_DIR="$STUBS_DIR"
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pycanha-dist-files-windows-${{ matrix.python-version }}
+          path: pycanha-project/pycanha-core-python/dist/*.whl
+
   upload_pypi:
     name: Publish to PyPI
-    needs: [build-matrix]
+    needs: [build-unix, build-windows]
     runs-on: ubuntu-latest
     environment:
       name: pypi
