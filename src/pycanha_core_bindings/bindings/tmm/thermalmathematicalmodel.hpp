@@ -11,6 +11,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "pycanha-core/globals.hpp"
+#include "pycanha-core/io/esatan.hpp"
 #include "pycanha-core/parameters/formulas.hpp"
 #include "pycanha-core/parameters/parameters.hpp"
 #include "pycanha-core/thermaldata/thermaldata.hpp"
@@ -61,6 +62,7 @@ inline void register_thermal_data(nb::module_ &m) {
 inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::ConductiveCouplings;
   using pycanha::Coupling;
+  using pycanha::ESATANReader;
   using pycanha::Formulas;
   using pycanha::Index;
   using pycanha::Node;
@@ -70,6 +72,14 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::ThermalData;
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalNetwork;
+
+  nb::class_<ESATANReader>(m, "ESATANReader", "ESATAN TMD file reader.")
+      .def(nb::init<ThermalMathematicalModel &>(), "model"_a,
+           nb::keep_alive<1, 2>())
+      .def("read_tmd", &ESATANReader::read_tmd, "filepath"_a,
+           "Read an ESATAN TMD file into the associated model.")
+      .def_rw("verbose", &ESATANReader::verbose,
+              "Enable verbose reader output.");
 
   nb::class_<ThermalMathematicalModel>(m, "ThermalMathematicalModel",
                                        "Thermal Mathematical Model (TMM).")
@@ -195,6 +205,16 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
            &ThermalMathematicalModel::callback_transient_time_change)
       .def("callback_transient_after_timestep",
            &ThermalMathematicalModel::callback_transient_after_timestep)
+      .def(
+          "read_tmd",
+          [](ThermalMathematicalModel &self, const std::string &filepath,
+             bool verbose) {
+            ESATANReader reader(self);
+            reader.verbose = verbose;
+            reader.read_tmd(filepath);
+          },
+          "filepath"_a, "verbose"_a = false,
+          "Read an ESATAN TMD file into this model.")
       .def_rw("callbacks_active", &ThermalMathematicalModel::callbacks_active)
       .def_rw("internal_callbacks_active",
               &ThermalMathematicalModel::internal_callbacks_active)

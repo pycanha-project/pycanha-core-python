@@ -22,6 +22,7 @@
 #include "bindings/tmm/nodes.hpp"
 #include "bindings/tmm/thermalmathematicalmodel.hpp"
 #include "bindings/tmm/thermalnetwork.hpp"
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/utils/package_info.hpp"
 
 namespace nb = nanobind;
@@ -33,8 +34,11 @@ using namespace gmm;
 using namespace pycanha::bindings::parameters;
 using namespace pycanha::bindings::solvers;
 using namespace pycanha::bindings::tmm;
+using namespace pycanha::bindings::utils;
 
 NB_MODULE(pycanha_core, m) {
+  register_logging(m);
+
   nb::module_ gmm_submodule =
       m.def_submodule("gmm", "Geometrical Mathematical Model");
 

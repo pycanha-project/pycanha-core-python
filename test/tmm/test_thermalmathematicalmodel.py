@@ -1,13 +1,25 @@
 """Test bindings for ThermalMathematicalModel."""
 
-import pytest
+from pathlib import Path
 
 import pycanha_core as pcc
+import pytest
 
 Coupling = pcc.tmm.Coupling
 Node = pcc.tmm.Node
 NodeType = pcc.tmm.NodeType
 ThermalMathematicalModel = pcc.tmm.ThermalMathematicalModel
+
+
+def get_reference_tmd_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[3]
+        / "pycanha-core"
+        / "test"
+        / "data"
+        / "esatan"
+        / "DISCTR_TRANSIENT.TMD"
+    )
 
 
 class TestThermalMathematicalModel:
@@ -127,3 +139,24 @@ class TestThermalMathematicalModel:
         tmm.add_node(b)
         assert tmm.nodes.num_diff_nodes == 1
         assert tmm.nodes.num_bound_nodes == 1
+
+    def test_esatan_reader_class_reads_reference_tmd(self):
+        reference_tmd_path = get_reference_tmd_path()
+        assert reference_tmd_path.exists()
+
+        tmm = ThermalMathematicalModel("esatan-reader")
+        reader = pcc.tmm.ESATANReader(tmm)
+        reader.verbose = True
+
+        reader.read_tmd(str(reference_tmd_path))
+
+        assert tmm.nodes.num_nodes > 0
+
+    def test_read_tmd_convenience_method_reads_reference_tmd(self):
+        reference_tmd_path = get_reference_tmd_path()
+        assert reference_tmd_path.exists()
+
+        tmm = ThermalMathematicalModel("esatan-convenience")
+        tmm.read_tmd(str(reference_tmd_path), verbose=False)
+
+        assert tmm.nodes.num_nodes > 0
