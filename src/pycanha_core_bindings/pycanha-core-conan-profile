@@ -9,7 +9,8 @@ compiler = msvc
 compiler.runtime_type = Release
 compiler.cppstd = 23
 compiler.runtime = dynamic
-compiler.version = 193
+# GitHub Actions windows-latest currently ships MSVC 19.4x (toolset 14.4x).
+compiler.version = 194
 os = Windows
 
 {% elif platform.system()=="Darwin" %}
