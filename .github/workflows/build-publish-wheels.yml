@@ -135,18 +135,65 @@ jobs:
             -Ccmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
+      - name: Log built artifact sizes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dist = Path("pycanha-project/pycanha-core-python/dist")
+          print("Built artifacts:")
+          for artifact in sorted(dist.glob("*")):
+              if artifact.is_file():
+                  size_mib = artifact.stat().st_size / (1024 * 1024)
+                  print(f"  {size_mib:8.2f} MiB  {artifact.name}")
+          PY
+        shell: bash
+
+      - name: Log Linux wheel dependencies
+        if: matrix.os == 'ubuntu'
+        run: |
+          cd pycanha-project/pycanha-core-python
+          python -m pip install auditwheel
+          python -m auditwheel show dist/*.whl
+        shell: bash
+
       - name: Repair wheel with auditwheel
         if: matrix.os == 'ubuntu'
         run: |
           cd pycanha-project/pycanha-core-python/dist
-          python -m pip install auditwheel
           sudo apt-get update && sudo apt-get install -y patchelf
           for whl in *.whl; do
-            auditwheel repair "$whl" --plat manylinux_2_39_x86_64 -w output
+            auditwheel repair "$whl" \
+              --plat manylinux_2_39_x86_64 \
+              --exclude 'libmkl_*.so*' \
+              --exclude 'libiomp5.so*' \
+              -w output
           done
           rm *.whl
           mv output/* .
           rm -r output
+        shell: bash
+
+      - name: Log repaired Linux wheel sizes
+        if: matrix.os == 'ubuntu'
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          dist = Path("pycanha-project/pycanha-core-python/dist")
+          print("Repaired Linux artifacts:")
+          for artifact in sorted(dist.glob("*.whl")):
+              size_mib = artifact.stat().st_size / (1024 * 1024)
+              print(f"\n{artifact.name}: {size_mib:.2f} MiB")
+              with zipfile.ZipFile(artifact) as zf:
+                  biggest = sorted(
+                      zf.infolist(), key=lambda info: info.file_size, reverse=True
+                  )[:10]
+              for info in biggest:
+                  file_mib = info.file_size / (1024 * 1024)
+                  print(f"  {file_mib:8.2f} MiB  {info.filename}")
+          PY
         shell: bash
 
       - name: Extract stubs from wheel (Linux only)

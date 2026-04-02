@@ -10,6 +10,13 @@ def test_submodules_exist():
     assert hasattr(pcc, "solvers")
 
 
+def test_logging_exports_exist():
+    assert hasattr(pcc, "Logger")
+    assert hasattr(pcc, "LogLevel")
+    assert hasattr(pcc, "get_logger")
+    assert hasattr(pcc, "get_profiling_logger")
+
+
 def test_nodetype_reexported():
     assert hasattr(pcc, "NodeType")
     assert pcc.NodeType is pcc.tmm.NodeType

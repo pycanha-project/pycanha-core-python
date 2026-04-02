@@ -135,7 +135,21 @@ if _USE_MKL:
 _EXTENSION = import_module(".pycanha_core", __name__)
 _EXTENSION.load_mkl_runtime = load_mkl_runtime
 _EXTENSION.__dict__.setdefault(
-    "__all__", ["gmm", "tmm", "parameters", "solvers", "NodeType", "print_package_info"]
+    "__all__",
+    [
+        "gmm",
+        "tmm",
+        "parameters",
+        "solvers",
+        "NodeType",
+        "LogLevel",
+        "Logger",
+        "get_logger",
+        "get_profiling_logger",
+        "set_logger_level",
+        "set_profiling_logger_level",
+        "print_package_info",
+    ],
 )
 _EXTENSION.__path__ = [str(Path(__file__).resolve().parent)]
 
