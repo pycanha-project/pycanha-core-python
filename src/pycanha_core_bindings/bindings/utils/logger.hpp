@@ -21,14 +21,14 @@ inline void register_logging(nb::module_ &m) {
   using Logger = spdlog::logger;
   using LogLevel = spdlog::level::level_enum;
 
-  nb::enum_<LogLevel>(m, "LogLevel", "spdlog log level.")
-      .value("TRACE", LogLevel::trace)
-      .value("DEBUG", LogLevel::debug)
-      .value("INFO", LogLevel::info)
-      .value("WARN", LogLevel::warn)
-      .value("ERROR", LogLevel::err)
-      .value("CRITICAL", LogLevel::critical)
-      .value("OFF", LogLevel::off)
+  nb::enum_<LogLevel>(m, "LogLevel", "Log verbosity level.")
+      .value("TRACE", LogLevel::trace, "Most verbose level.")
+      .value("DEBUG", LogLevel::debug, "Debug-level messages.")
+      .value("INFO", LogLevel::info, "Informational messages.")
+      .value("WARN", LogLevel::warn, "Warning messages.")
+      .value("ERROR", LogLevel::err, "Error messages.")
+      .value("CRITICAL", LogLevel::critical, "Critical/fatal messages.")
+      .value("OFF", LogLevel::off, "Disable all logging.")
       .export_values();
 
   nb::class_<Logger>(m, "Logger", "pycanha-core logger.")
@@ -52,33 +52,33 @@ inline void register_logging(nb::module_ &m) {
       .def(
           "trace",
           [](Logger &self, const std::string &message) { self.trace(message); },
-          "message"_a)
+          "message"_a, "Log a message at TRACE level.")
       .def(
           "debug",
           [](Logger &self, const std::string &message) { self.debug(message); },
-          "message"_a)
+          "message"_a, "Log a message at DEBUG level.")
       .def(
           "info",
           [](Logger &self, const std::string &message) { self.info(message); },
-          "message"_a)
+          "message"_a, "Log a message at INFO level.")
       .def(
           "warn",
           [](Logger &self, const std::string &message) { self.warn(message); },
-          "message"_a)
+          "message"_a, "Log a message at WARN level.")
       .def(
           "warning",
           [](Logger &self, const std::string &message) { self.warn(message); },
-          "message"_a)
+          "message"_a, "Log a message at WARN level (alias for warn).")
       .def(
           "error",
           [](Logger &self, const std::string &message) { self.error(message); },
-          "message"_a)
+          "message"_a, "Log a message at ERROR level.")
       .def(
           "critical",
           [](Logger &self, const std::string &message) {
             self.critical(message);
           },
-          "message"_a)
+          "message"_a, "Log a message at CRITICAL level.")
       .def("flush", &Logger::flush, "Flush pending log output.");
 
   m.def("get_logger", &pycanha::get_logger,
