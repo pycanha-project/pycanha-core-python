@@ -60,42 +60,55 @@ inline void register_parameters(nb::module_ &m) {
         [](const auto &item) -> nb::object { return nb::cast(item); }, value);
   };
 
-  nb::class_<Parameters>(m, "Parameters", "Parameters storage.")
-      .def(nb::init<>())
+  nb::class_<Parameters>(m, "Parameters",
+                        "Named parameter store for parametric studies.\n\n"
+                        "Stores values of type bool, int, float, str, or numpy\n"
+                        "array, keyed by string name. Used with Formulas to\n"
+                        "propagate parameter changes to the thermal network.")
+      .def(nb::init<>(), "Create an empty Parameters store.")
       .def(
           "add_parameter",
           [to_thermal_value](Parameters &self, const std::string &name,
                              const nb::object &value) {
             self.add_parameter(name, to_thermal_value(value));
           },
-          "name"_a, "value"_a)
-      .def("remove_parameter", &Parameters::remove_parameter, "name"_a)
+          "name"_a, "value"_a,
+          "Add a new named parameter with the given value.")
+      .def("remove_parameter", &Parameters::remove_parameter, "name"_a,
+           "Remove a parameter by name.")
       .def(
           "get_parameter",
           [to_python](Parameters &self, const std::string &name) {
             return to_python(self.get_parameter(name));
           },
-          "name"_a)
+          "name"_a,
+          "Get the current value of a parameter.")
       .def(
           "set_parameter",
           [to_thermal_value](Parameters &self, const std::string &name,
                              const nb::object &value) {
             self.set_parameter(name, to_thermal_value(value));
           },
-          "name"_a, "value"_a)
-      .def("contains", &Parameters::contains, "name"_a)
-      .def("size", &Parameters::size)
-      .def("get_memory_address", &Parameters::get_memory_address, "name"_a)
-      .def("get_idx", &Parameters::get_idx, "name"_a)
+          "name"_a, "value"_a,
+          "Update the value of an existing parameter.")
+      .def("contains", &Parameters::contains, "name"_a,
+           "Check whether a parameter with the given name exists.")
+      .def("size", &Parameters::size,
+           "Return the number of stored parameters.")
+      .def("get_memory_address", &Parameters::get_memory_address, "name"_a,
+           "Memory address (as int) of a parameter value for formula binding.")
+      .def("get_idx", &Parameters::get_idx, "name"_a,
+           "Get the internal index of a parameter by name.")
       .def("get_size_of_parameter", &Parameters::get_size_of_parameter,
-           "name"_a)
+           "name"_a,
+           "Get the byte size of a parameter's stored value.")
       .def_prop_ro("data", [to_python](Parameters &self) {
         nb::dict result;
         for (const auto &[key, value] : self.data()) {
           result[nb::cast(key)] = to_python(value);
         }
         return result;
-      });
+      }, "Dictionary of all parameter name-value pairs.");
 }
 
 inline void register_entities(nb::module_ &m) {
@@ -106,45 +119,65 @@ inline void register_entities(nb::module_ &m) {
   using pycanha::ThermalNetwork;
 
   nb::class_<ThermalEntity>(m, "ThermalEntity",
-                            "Reference to a value in the thermal network.")
+                            "Abstract reference to a value in the thermal network.\n\n"
+                            "Subclasses (AttributeEntity, ConductiveCouplingEntity,\n"
+                            "RadiativeCouplingEntity) point to specific node\n"
+                            "attributes or coupling values.")
       .def_prop_ro("type", &ThermalEntity::type,
-                   nb::rv_policy::reference_internal)
-      .def_prop_ro("node_index_1", &ThermalEntity::node_index_1)
-      .def_prop_ro("node_index_2", &ThermalEntity::node_index_2)
-      .def("string_representation", &ThermalEntity::string_representation)
-      .def("get_value", &ThermalEntity::get_value)
-      .def("set_value", &ThermalEntity::set_value, "value"_a)
+                   nb::rv_policy::reference_internal,
+                   "Entity type string (e.g. 'T', 'C', 'QI', 'GL', 'GR').")
+      .def_prop_ro("node_index_1", &ThermalEntity::node_index_1,
+                   "First node number.")
+      .def_prop_ro("node_index_2", &ThermalEntity::node_index_2,
+                   "Second node number (-1 for single-node attributes).")
+      .def("string_representation", &ThermalEntity::string_representation,
+           "Human-readable string, e.g. 'T1', 'GL(1,2)'.")
+      .def("get_value", &ThermalEntity::get_value,
+           "Get the current value of the referenced quantity.")
+      .def("set_value", &ThermalEntity::set_value, "value"_a,
+           "Set the value of the referenced quantity.")
       .def("get_value_pointer",
            [](ThermalEntity &self) {
              return reinterpret_cast<std::uintptr_t>(self.get_value_ref());
-           })
+           },
+           "Memory address of the referenced value for formula binding.")
       .def("clone", [](const ThermalEntity &self) {
         auto cloned = self.clone();
         return std::shared_ptr<ThermalEntity>(std::move(cloned));
-      });
+      }, "Create an independent copy of this entity.");
 
   nb::class_<AttributeEntity, ThermalEntity>(
-      m, "AttributeEntity", "Entity referencing a node attribute.")
+      m, "AttributeEntity",
+      "Entity referencing a single-node attribute (T, C, QI, etc.).")
       .def(nb::init<ThermalNetwork &, std::string, int>(), "network"_a,
-           "attribute"_a, "node"_a, nb::keep_alive<1, 2>())
-      .def("get_value", &AttributeEntity::get_value)
-      .def("set_value", &AttributeEntity::set_value, "value"_a);
+           "attribute"_a, "node"_a, nb::keep_alive<1, 2>(),
+           "Create an entity for the given attribute of a node.")
+      .def("get_value", &AttributeEntity::get_value,
+           "Get the current attribute value.")
+      .def("set_value", &AttributeEntity::set_value, "value"_a,
+           "Set the attribute value.");
 
   nb::class_<ConductiveCouplingEntity, ThermalEntity>(
       m, "ConductiveCouplingEntity",
-      "Entity referencing a conductive coupling value.")
+      "Entity referencing a conductive coupling GL(node_1, node_2).")
       .def(nb::init<ThermalNetwork &, int, int>(), "network"_a, "node_1"_a,
-           "node_2"_a, nb::keep_alive<1, 2>())
-      .def("get_value", &ConductiveCouplingEntity::get_value)
-      .def("set_value", &ConductiveCouplingEntity::set_value, "value"_a);
+           "node_2"_a, nb::keep_alive<1, 2>(),
+           "Create an entity for GL between two nodes.")
+      .def("get_value", &ConductiveCouplingEntity::get_value,
+           "Get the conductive coupling value [W/K].")
+      .def("set_value", &ConductiveCouplingEntity::set_value, "value"_a,
+           "Set the conductive coupling value [W/K].");
 
   nb::class_<RadiativeCouplingEntity, ThermalEntity>(
       m, "RadiativeCouplingEntity",
-      "Entity referencing a radiative coupling value.")
+      "Entity referencing a radiative coupling GR(node_1, node_2).")
       .def(nb::init<ThermalNetwork &, int, int>(), "network"_a, "node_1"_a,
-           "node_2"_a, nb::keep_alive<1, 2>())
-      .def("get_value", &RadiativeCouplingEntity::get_value)
-      .def("set_value", &RadiativeCouplingEntity::set_value, "value"_a);
+           "node_2"_a, nb::keep_alive<1, 2>(),
+           "Create an entity for GR between two nodes.")
+      .def("get_value", &RadiativeCouplingEntity::get_value,
+           "Get the radiative coupling value [m^2].")
+      .def("set_value", &RadiativeCouplingEntity::set_value, "value"_a,
+           "Set the radiative coupling value [m^2].");
 }
 
 inline void register_formulas(nb::module_ &m) {
@@ -156,11 +189,17 @@ inline void register_formulas(nb::module_ &m) {
   using pycanha::ThermalNetwork;
   using pycanha::ValueFormula;
 
-  nb::class_<Formula>(m, "Formula", "Base class for a formula.")
-      .def("compile_formula", &Formula::compile_formula)
-      .def("apply_formula", &Formula::apply_formula)
-      .def("apply_compiled_formula", &Formula::apply_compiled_formula)
-      .def("get_value", &Formula::get_value)
+  nb::class_<Formula>(m, "Formula",
+                     "Abstract base class for formulas that bind parameter\n"
+                     "values to thermal entities.")
+      .def("compile_formula", &Formula::compile_formula,
+           "Compile the formula (resolve pointers for fast evaluation).")
+      .def("apply_formula", &Formula::apply_formula,
+           "Evaluate and write the formula result to the entity.")
+      .def("apply_compiled_formula", &Formula::apply_compiled_formula,
+           "Evaluate and write using pre-compiled pointers (faster).")
+      .def("get_value", &Formula::get_value,
+           "Get the current computed value of the formula.")
       .def("get_derivative_values",
            [](Formula &self) -> nb::object {
              auto *values = self.get_derivative_values();
@@ -168,50 +207,67 @@ inline void register_formulas(nb::module_ &m) {
                return nb::none();
              }
              return nb::cast(*values);
-           })
+           },
+           "Get derivative values for sensitivity analysis, or None.")
       .def_prop_ro(
           "entity",
           [](Formula &self) -> ThermalEntity & { return self.entity(); },
-          nb::rv_policy::reference_internal)
+          nb::rv_policy::reference_internal,
+          "Reference to the target ThermalEntity.")
       .def_prop_ro(
           "parameter_dependencies",
-          [](const Formula &self) { return self.parameter_dependencies(); })
+          [](const Formula &self) { return self.parameter_dependencies(); },
+          "List of parameter names this formula depends on.")
       .def("clone", [](const Formula &self) {
         auto cloned = self.clone();
         return std::shared_ptr<Formula>(std::move(cloned));
-      });
+      }, "Create an independent copy of this formula.");
 
   nb::class_<ParameterFormula, Formula>(
       m, "ParameterFormula",
-      "Formula that copies a parameter value to an entity.")
+      "Formula that copies a named parameter value to an entity.\n\n"
+      "When applied, sets entity value = parameter value.")
       .def(nb::init<ThermalEntity &, Parameters &, std::string>(), "entity"_a,
            "parameters"_a, "parameter"_a, nb::keep_alive<1, 2>(),
-           nb::keep_alive<1, 3>())
+           nb::keep_alive<1, 3>(),
+           "Create a formula linking entity to a named parameter.")
       .def(
           nb::init<std::shared_ptr<ThermalEntity>, Parameters &, std::string>(),
           "entity"_a, "parameters"_a, "parameter"_a, nb::keep_alive<1, 2>(),
-          nb::keep_alive<1, 3>())
-      .def("compile_formula", &ParameterFormula::compile_formula)
-      .def("apply_formula", &ParameterFormula::apply_formula)
-      .def("apply_compiled_formula", &ParameterFormula::apply_compiled_formula)
-      .def("get_value", &ParameterFormula::get_value)
+          nb::keep_alive<1, 3>(),
+          "Create a formula linking entity (shared_ptr) to a named parameter.")
+      .def("compile_formula", &ParameterFormula::compile_formula,
+           "Compile the formula (resolve pointers for fast evaluation).")
+      .def("apply_formula", &ParameterFormula::apply_formula,
+           "Evaluate and write the parameter value to the entity.")
+      .def("apply_compiled_formula", &ParameterFormula::apply_compiled_formula,
+           "Evaluate and write using pre-compiled pointers (faster).")
+      .def("get_value", &ParameterFormula::get_value,
+           "Get the current parameter value.")
       .def("get_derivative_values", [](ParameterFormula &self) -> nb::object {
         auto *values = self.get_derivative_values();
         if (values == nullptr) {
           return nb::none();
         }
         return nb::cast(*values);
-      });
+      }, "Get derivative values for sensitivity analysis, or None.");
 
   nb::class_<ValueFormula, Formula>(
-      m, "ValueFormula", "Formula that assigns a constant value to an entity.")
-      .def(nb::init<ThermalEntity &>(), "entity"_a, nb::keep_alive<1, 2>())
+      m, "ValueFormula",
+      "Formula that assigns a fixed constant value to an entity.")
+      .def(nb::init<ThermalEntity &>(), "entity"_a, nb::keep_alive<1, 2>(),
+           "Create a value formula for the given entity.")
       .def(nb::init<std::shared_ptr<ThermalEntity>>(), "entity"_a,
-           nb::keep_alive<1, 2>())
-      .def("compile_formula", &ValueFormula::compile_formula)
-      .def("apply_formula", &ValueFormula::apply_formula)
-      .def("apply_compiled_formula", &ValueFormula::apply_compiled_formula)
-      .def("get_value", &ValueFormula::get_value)
+           nb::keep_alive<1, 2>(),
+           "Create a value formula for the given entity (shared_ptr).")
+      .def("compile_formula", &ValueFormula::compile_formula,
+           "Compile the formula (resolve pointers for fast evaluation).")
+      .def("apply_formula", &ValueFormula::apply_formula,
+           "Write the constant value to the entity.")
+      .def("apply_compiled_formula", &ValueFormula::apply_compiled_formula,
+           "Write using pre-compiled pointers (faster).")
+      .def("get_value", &ValueFormula::get_value,
+           "Get the stored constant value.")
       .def("get_derivative_values",
            [](ValueFormula &self) -> nb::object {
              auto *values = self.get_derivative_values();
@@ -219,27 +275,37 @@ inline void register_formulas(nb::module_ &m) {
                return nb::none();
              }
              return nb::cast(*values);
-           })
-      .def("set_value", &ValueFormula::set_value, "value"_a);
+           },
+           "Get derivative values for sensitivity analysis, or None.")
+      .def("set_value", &ValueFormula::set_value, "value"_a,
+           "Set the constant value to assign.");
 
   nb::class_<Formulas>(m, "Formulas",
-                       "Collection of formulas linking parameters to entities.")
-      .def(nb::init<>())
+                       "Collection of formulas linking parameters to thermal\n"
+                       "entities. Call apply_formulas() to propagate parameter\n"
+                       "changes to the network.")
+      .def(nb::init<>(), "Create an empty Formulas collection.")
       .def(nb::init<std::shared_ptr<ThermalNetwork>,
                     std::shared_ptr<Parameters>>(),
-           "network"_a, "parameters"_a)
-      .def("associate", &Formulas::associate, "network"_a, "parameters"_a)
+           "network"_a, "parameters"_a,
+           "Create a Formulas collection with associated network and parameters.")
+      .def("associate", &Formulas::associate, "network"_a, "parameters"_a,
+           "Associate this collection with a network and parameters store.")
       .def("create_parameter_formula", &Formulas::create_parameter_formula,
-           "entity"_a, "parameter"_a)
+           "entity"_a, "parameter"_a,
+           "Create and add a ParameterFormula for the entity and parameter name.")
       .def("add_formula",
            static_cast<void (Formulas::*)(const Formula &)>(
                &Formulas::add_formula),
-           "formula"_a)
+           "formula"_a,
+           "Add a formula (by copy) to the collection.")
       .def("add_formula",
            static_cast<void (Formulas::*)(const std::shared_ptr<Formula> &)>(
                &Formulas::add_formula),
-           "formula"_a)
-      .def("apply_formulas", &Formulas::apply_formulas)
+           "formula"_a,
+           "Add a formula (by shared pointer) to the collection.")
+      .def("apply_formulas", &Formulas::apply_formulas,
+           "Apply all formulas, propagating parameter values to the network.")
       .def_prop_ro("formulas",
                    [](const Formulas &self) {
                      nb::list collection;
@@ -247,7 +313,8 @@ inline void register_formulas(nb::module_ &m) {
                        collection.append(formula);
                      }
                      return collection;
-                   })
+                   },
+                   "List of all stored Formula objects.")
       .def_prop_ro("parameter_dependencies", [](const Formulas &self) {
         nb::dict dependencies;
         for (const auto &[name, formulas] : self.parameter_dependencies()) {
@@ -258,7 +325,7 @@ inline void register_formulas(nb::module_ &m) {
           dependencies[nb::cast(name)] = std::move(formula_list);
         }
         return dependencies;
-      });
+      }, "Dict mapping parameter names to lists of dependent formulas.");
 }
 
 } // namespace pycanha::bindings::parameters

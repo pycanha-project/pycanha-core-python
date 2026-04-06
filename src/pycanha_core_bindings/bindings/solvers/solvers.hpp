@@ -33,71 +33,105 @@ inline void register_solvers(nb::module_ &m) {
   using pycanha::TSCNRLDS;
   using pycanha::TSCNRLDS_JACOBIAN;
 
-  nb::class_<Solver>(m, "Solver", "Base class for thermal solvers.")
-      .def_rw("MAX_ITERS", &Solver::MAX_ITERS)
-      .def_rw("abstol_temp", &Solver::abstol_temp)
-      .def_rw("abstol_enrgy", &Solver::abstol_enrgy)
-      .def_rw("eps_capacity", &Solver::eps_capacity)
-      .def_rw("eps_time", &Solver::eps_time)
-      .def_rw("eps_coupling", &Solver::eps_coupling)
-      .def_rw("pardiso_iparm_3", &Solver::pardiso_iparm_3)
+  nb::class_<Solver>(m, "Solver",
+                    "Abstract base class for thermal solvers.\n\n"
+                    "Lifecycle: initialize() -> solve() -> deinitialize().")
+      .def_rw("MAX_ITERS", &Solver::MAX_ITERS,
+              "Maximum number of solver iterations per step.")
+      .def_rw("abstol_temp", &Solver::abstol_temp,
+              "Absolute temperature convergence tolerance [K].")
+      .def_rw("abstol_enrgy", &Solver::abstol_enrgy,
+              "Absolute energy convergence tolerance [W].")
+      .def_rw("eps_capacity", &Solver::eps_capacity,
+              "Minimum thermal capacity threshold [J/K].")
+      .def_rw("eps_time", &Solver::eps_time,
+              "Time step epsilon [s].")
+      .def_rw("eps_coupling", &Solver::eps_coupling,
+              "Minimum coupling value threshold.")
+      .def_rw("pardiso_iparm_3", &Solver::pardiso_iparm_3,
+              "MKL PARDISO iparm[3] parameter (preconditioner control).")
       .def_prop_ro("solver_iter",
-                   [](const Solver &self) { return self.solver_iter; })
+                   [](const Solver &self) { return self.solver_iter; },
+                   "Current solver iteration count.")
       .def_prop_ro(
           "solver_name",
           [](const Solver &self) -> const std::string & {
             return self.solver_name;
           },
-          nb::rv_policy::reference_internal)
+          nb::rv_policy::reference_internal,
+          "Name of the solver.")
       .def_prop_ro("solver_initialized",
-                   [](const Solver &self) { return self.solver_initialized; })
+                   [](const Solver &self) { return self.solver_initialized; },
+                   "Whether initialize() has been called.")
       .def_prop_ro("solver_converged",
-                   [](const Solver &self) { return self.solver_converged; });
+                   [](const Solver &self) { return self.solver_converged; },
+                   "Whether the solver has converged.");
 
   nb::class_<SteadyStateSolver, Solver>(m, "SteadyStateSolver",
-                                        "Base class for steady-state solvers.");
+                                        "Base class for steady-state (time-independent) solvers.");
 
   nb::class_<TransientSolver, Solver>(m, "TransientSolver",
-                                      "Base class for transient solvers.")
+                                      "Base class for transient (time-dependent) solvers.")
       .def("set_simulation_time", &TransientSolver::set_simulation_time,
-           "start_time"_a, "end_time"_a, "dtime"_a, "output_stride"_a);
+           "start_time"_a, "end_time"_a, "dtime"_a, "output_stride"_a,
+           "Configure the transient simulation time window and output interval.");
 
   nb::class_<TSCN, TransientSolver>(
-      m, "TSCN", "Base class for Crank-Nicolson transient solvers.");
+      m, "TSCN",
+      "Base class for Crank-Nicolson transient solvers.");
   nb::class_<TSCNRL, TSCN>(
-      m, "TSCNRL", "Transient solver: Crank-Nicolson Radiative Linearization.");
+      m, "TSCNRL",
+      "Transient Crank-Nicolson solver with radiation linearization.");
 
   nb::class_<SSLU, SteadyStateSolver>(m, "SSLU",
-                                      "Steady-state solver: LU decomposition.")
+                                      "Steady-state solver using sparse LU decomposition.\n\n"
+                                      "Solves the non-linear steady-state thermal equation\n"
+                                      "iteratively using Eigen SparseLU factorization.")
       .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
-           nb::keep_alive<1, 2>())
-      .def("initialize", &SSLU::initialize)
-      .def("solve", &SSLU::solve)
-      .def("deinitialize", &SSLU::deinitialize);
+           nb::keep_alive<1, 2>(),
+           "Create a solver bound to a ThermalMathematicalModel.")
+      .def("initialize", &SSLU::initialize,
+           "Allocate solver resources and prepare matrices.")
+      .def("solve", &SSLU::solve,
+           "Run the steady-state solve to convergence.")
+      .def("deinitialize", &SSLU::deinitialize,
+           "Release solver resources.");
 
   nb::class_<TSCNRLDS, TSCNRL>(
       m, "TSCNRLDS",
-      "Transient solver: Crank-Nicolson Radiative Linearization Direct Sparse.")
+      "Transient Crank-Nicolson solver with radiation linearization\n"
+      "and direct sparse factorization.\n\n"
+      "Uses MKL PARDISO when available, otherwise Eigen SparseLU.")
       .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
-           nb::keep_alive<1, 2>())
-      .def("initialize", &TSCNRLDS::initialize)
-      .def("solve", &TSCNRLDS::solve)
-      .def("deinitialize", &TSCNRLDS::deinitialize);
+           nb::keep_alive<1, 2>(),
+           "Create a solver bound to a ThermalMathematicalModel.")
+      .def("initialize", &TSCNRLDS::initialize,
+           "Allocate solver resources and prepare matrices.")
+      .def("solve", &TSCNRLDS::solve,
+           "Run the transient simulation over the configured time window.")
+      .def("deinitialize", &TSCNRLDS::deinitialize,
+           "Release solver resources.");
 
   nb::class_<TSCNRLDS_JACOBIAN, TSCNRLDS>(
       m, "TSCNRLDS_JACOBIAN",
-      "Transient solver: Crank-Nicolson Radiative Linearization Direct Sparse "
-      "with Jacobian output.")
+      "TSCNRLDS solver extended with Jacobian (sensitivity) output.\n\n"
+      "Computes dT/dp for each parameter during the transient simulation.")
       .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
-           nb::keep_alive<1, 2>())
-      .def("initialize", &TSCNRLDS_JACOBIAN::initialize)
-      .def("solve", &TSCNRLDS_JACOBIAN::solve)
-      .def("deinitialize", &TSCNRLDS_JACOBIAN::deinitialize)
+           nb::keep_alive<1, 2>(),
+           "Create a Jacobian solver bound to a ThermalMathematicalModel.")
+      .def("initialize", &TSCNRLDS_JACOBIAN::initialize,
+           "Allocate solver resources and collect parameter names.")
+      .def("solve", &TSCNRLDS_JACOBIAN::solve,
+           "Run the transient simulation with Jacobian computation.")
+      .def("deinitialize", &TSCNRLDS_JACOBIAN::deinitialize,
+           "Release solver resources.")
       .def_prop_ro(
           "parameter_names",
-          [](const TSCNRLDS_JACOBIAN &self) { return self.parameter_names(); })
+          [](const TSCNRLDS_JACOBIAN &self) { return self.parameter_names(); },
+          "List of parameter names for which sensitivities are computed.")
       .def_rw("output_jacobian_table_name",
-              &TSCNRLDS_JACOBIAN::output_jacobian_table_name);
+              &TSCNRLDS_JACOBIAN::output_jacobian_table_name,
+              "Name of the ThermalData table where Jacobian results are stored.");
 }
 
 } // namespace pycanha::bindings::solvers

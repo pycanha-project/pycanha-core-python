@@ -33,12 +33,16 @@ void Primitive_b(nb::module_ &m) {
 
 void Triangle_b(nb::module_ &m) {
   nb::class_<Triangle, Primitive>(m, "Triangle",
-                                  "Triangle defined by three vertices.")
+                                  "Triangular flat surface defined by three 3D vertices.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D>(),
-           "p1"_a, "p2"_a, "p3"_a)
-      .def_prop_rw("p1", &Triangle::get_p1, &Triangle::set_p1)
-      .def_prop_rw("p2", &Triangle::get_p2, &Triangle::set_p2)
-      .def_prop_rw("p3", &Triangle::get_p3, &Triangle::set_p3)
+           "p1"_a, "p2"_a, "p3"_a,
+           "Create a triangle from three 3D vertex positions.")
+      .def_prop_rw("p1", &Triangle::get_p1, &Triangle::set_p1,
+                   "First vertex position.")
+      .def_prop_rw("p2", &Triangle::get_p2, &Triangle::set_p2,
+                   "Second vertex position.")
+      .def_prop_rw("p3", &Triangle::get_p3, &Triangle::set_p3,
+                   "Third vertex position.")
       .def("v1", &Triangle::v1, "Edge vector p2 - p1.")
       .def("v2", &Triangle::v2, "Edge vector p3 - p1.")
       .def("is_valid", &Triangle::is_valid)
@@ -55,12 +59,18 @@ void Triangle_b(nb::module_ &m) {
 
 void Rectangle_b(nb::module_ &m) {
   nb::class_<Rectangle, Primitive>(m, "Rectangle",
-                                   "Rectangle defined by three vertices.")
+                                   "Rectangular flat surface defined by three vertices.\n\n"
+                                   "The fourth vertex is derived automatically.\n"
+                                   "p1-p2 defines one edge, p1-p3 the adjacent edge.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D>(),
-           "p1"_a, "p2"_a, "p3"_a)
-      .def_prop_rw("p1", &Rectangle::get_p1, &Rectangle::set_p1)
-      .def_prop_rw("p2", &Rectangle::get_p2, &Rectangle::set_p2)
-      .def_prop_rw("p3", &Rectangle::get_p3, &Rectangle::set_p3)
+           "p1"_a, "p2"_a, "p3"_a,
+           "Create a rectangle from three corner positions.")
+      .def_prop_rw("p1", &Rectangle::get_p1, &Rectangle::set_p1,
+                   "Origin vertex position.")
+      .def_prop_rw("p2", &Rectangle::get_p2, &Rectangle::set_p2,
+                   "Second vertex (defines first edge from p1).")
+      .def_prop_rw("p3", &Rectangle::get_p3, &Rectangle::set_p3,
+                   "Third vertex (defines second edge from p1).")
       .def("v1", &Rectangle::v1, "Edge vector p2 - p1.")
       .def("v2", &Rectangle::v2, "Edge vector p3 - p2.")
       .def("is_valid", &Rectangle::is_valid)
@@ -77,14 +87,21 @@ void Rectangle_b(nb::module_ &m) {
 
 void Quadrilateral_b(nb::module_ &m) {
   nb::class_<Quadrilateral, Primitive>(
-      m, "Quadrilateral", "Quadrilateral defined by four vertices.")
+      m, "Quadrilateral",
+      "General quadrilateral surface defined by four vertices\n"
+      "(may be non-planar).")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                     pycanha::Point3D>(),
-           "p1"_a, "p2"_a, "p3"_a, "p4"_a)
-      .def_prop_rw("p1", &Quadrilateral::get_p1, &Quadrilateral::set_p1)
-      .def_prop_rw("p2", &Quadrilateral::get_p2, &Quadrilateral::set_p2)
-      .def_prop_rw("p3", &Quadrilateral::get_p3, &Quadrilateral::set_p3)
-      .def_prop_rw("p4", &Quadrilateral::get_p4, &Quadrilateral::set_p4)
+           "p1"_a, "p2"_a, "p3"_a, "p4"_a,
+           "Create a quadrilateral from four 3D vertex positions.")
+      .def_prop_rw("p1", &Quadrilateral::get_p1, &Quadrilateral::set_p1,
+                   "First vertex position.")
+      .def_prop_rw("p2", &Quadrilateral::get_p2, &Quadrilateral::set_p2,
+                   "Second vertex position.")
+      .def_prop_rw("p3", &Quadrilateral::get_p3, &Quadrilateral::set_p3,
+                   "Third vertex position.")
+      .def_prop_rw("p4", &Quadrilateral::get_p4, &Quadrilateral::set_p4,
+                   "Fourth vertex position.")
       .def("v1", &Quadrilateral::v1, "Edge vector p2 - p1.")
       .def("v2", &Quadrilateral::v2, "Edge vector p3 - p2.")
       .def("is_valid", &Quadrilateral::is_valid)
@@ -101,19 +118,27 @@ void Quadrilateral_b(nb::module_ &m) {
 
 void Cylinder_b(nb::module_ &m) {
   nb::class_<Cylinder, Primitive>(m, "Cylinder",
-                                  "Cylindrical surface segment.")
+                                  "Cylindrical surface segment defined by axis,\n"
+                                  "radius, and angular extent.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                     double, double, double>(),
            "p1"_a, "p2"_a, "p3"_a, "radius"_a, "start_angle"_a,
-           "end_angle"_a)
-      .def_prop_rw("p1", &Cylinder::get_p1, &Cylinder::set_p1)
-      .def_prop_rw("p2", &Cylinder::get_p2, &Cylinder::set_p2)
-      .def_prop_rw("p3", &Cylinder::get_p3, &Cylinder::set_p3)
-      .def_prop_rw("radius", &Cylinder::get_radius, &Cylinder::set_radius)
+           "end_angle"_a,
+           "Create a cylinder from axis points, reference, radius, and angles.")
+      .def_prop_rw("p1", &Cylinder::get_p1, &Cylinder::set_p1,
+                   "Base center position.")
+      .def_prop_rw("p2", &Cylinder::get_p2, &Cylinder::set_p2,
+                   "Top center position.")
+      .def_prop_rw("p3", &Cylinder::get_p3, &Cylinder::set_p3,
+                   "Reference point for angle origin.")
+      .def_prop_rw("radius", &Cylinder::get_radius, &Cylinder::set_radius,
+                   "Cylinder radius.")
       .def_prop_rw("start_angle", &Cylinder::get_start_angle,
-                    &Cylinder::set_start_angle)
+                    &Cylinder::set_start_angle,
+                    "Start angle [rad].")
       .def_prop_rw("end_angle", &Cylinder::get_end_angle,
-                    &Cylinder::set_end_angle)
+                    &Cylinder::set_end_angle,
+                    "End angle [rad].")
       .def("is_valid", &Cylinder::is_valid)
       .def("distance", &Cylinder::distance, "point"_a)
       .def("distance_jacobian_cutted_surface",
@@ -127,21 +152,31 @@ void Cylinder_b(nb::module_ &m) {
 }
 
 void Disc_b(nb::module_ &m) {
-  nb::class_<Disc, Primitive>(m, "Disc", "Annular disc surface segment.")
+  nb::class_<Disc, Primitive>(m, "Disc",
+                            "Annular disc (flat ring) surface segment defined\n"
+                            "by center, normal, inner/outer radii, and angular extent.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                     double, double, double, double>(),
            "p1"_a, "p2"_a, "p3"_a, "inner_radius"_a, "outer_radius"_a,
-           "start_angle"_a, "end_angle"_a)
-      .def_prop_rw("p1", &Disc::get_p1, &Disc::set_p1)
-      .def_prop_rw("p2", &Disc::get_p2, &Disc::set_p2)
-      .def_prop_rw("p3", &Disc::get_p3, &Disc::set_p3)
+           "start_angle"_a, "end_angle"_a,
+           "Create a disc from center, normal ref, radii, and angles.")
+      .def_prop_rw("p1", &Disc::get_p1, &Disc::set_p1,
+                   "Center position.")
+      .def_prop_rw("p2", &Disc::get_p2, &Disc::set_p2,
+                   "Normal direction reference point.")
+      .def_prop_rw("p3", &Disc::get_p3, &Disc::set_p3,
+                   "Reference point for angle origin.")
       .def_prop_rw("inner_radius", &Disc::get_inner_radius,
-                    &Disc::set_inner_radius)
+                    &Disc::set_inner_radius,
+                    "Inner radius (0 for a full disc).")
       .def_prop_rw("outer_radius", &Disc::get_outer_radius,
-                    &Disc::set_outer_radius)
+                    &Disc::set_outer_radius,
+                    "Outer radius.")
       .def_prop_rw("start_angle", &Disc::get_start_angle,
-                    &Disc::set_start_angle)
-      .def_prop_rw("end_angle", &Disc::get_end_angle, &Disc::set_end_angle)
+                    &Disc::set_start_angle,
+                    "Start angle [rad].")
+      .def_prop_rw("end_angle", &Disc::get_end_angle, &Disc::set_end_angle,
+                   "End angle [rad].")
       .def("is_valid", &Disc::is_valid)
       .def("distance", &Disc::distance, "point"_a)
       .def("distance_jacobian_cutted_surface",
@@ -156,19 +191,28 @@ void Disc_b(nb::module_ &m) {
 
 void Cone_b(nb::module_ &m) {
   nb::class_<Cone, Primitive>(m, "Cone",
-                              "Conical surface segment with two radii.")
+                              "Conical (frustum) surface segment defined by\n"
+                              "axis, two radii, and angular extent.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                     double, double, double, double>(),
            "p1"_a, "p2"_a, "p3"_a, "radius1"_a, "radius2"_a,
-           "start_angle"_a, "end_angle"_a)
-      .def_prop_rw("p1", &Cone::get_p1, &Cone::set_p1)
-      .def_prop_rw("p2", &Cone::get_p2, &Cone::set_p2)
-      .def_prop_rw("p3", &Cone::get_p3, &Cone::set_p3)
-      .def_prop_rw("radius1", &Cone::get_radius1, &Cone::set_radius1)
-      .def_prop_rw("radius2", &Cone::get_radius2, &Cone::set_radius2)
+           "start_angle"_a, "end_angle"_a,
+           "Create a cone from axis points, reference, radii, and angles.")
+      .def_prop_rw("p1", &Cone::get_p1, &Cone::set_p1,
+                   "Base center position.")
+      .def_prop_rw("p2", &Cone::get_p2, &Cone::set_p2,
+                   "Top center position.")
+      .def_prop_rw("p3", &Cone::get_p3, &Cone::set_p3,
+                   "Reference point for angle origin.")
+      .def_prop_rw("radius1", &Cone::get_radius1, &Cone::set_radius1,
+                   "Radius at the base (p1 end).")
+      .def_prop_rw("radius2", &Cone::get_radius2, &Cone::set_radius2,
+                   "Radius at the top (p2 end).")
       .def_prop_rw("start_angle", &Cone::get_start_angle,
-                    &Cone::set_start_angle)
-      .def_prop_rw("end_angle", &Cone::get_end_angle, &Cone::set_end_angle)
+                    &Cone::set_start_angle,
+                    "Start angle [rad].")
+      .def_prop_rw("end_angle", &Cone::get_end_angle, &Cone::set_end_angle,
+                   "End angle [rad].")
       .def("is_valid", &Cone::is_valid)
       .def("distance", &Cone::distance, "point"_a)
       .def("distance_jacobian_cutted_surface",
@@ -183,22 +227,34 @@ void Cone_b(nb::module_ &m) {
 
 void Sphere_b(nb::module_ &m) {
   nb::class_<Sphere, Primitive>(
-      m, "Sphere", "Spherical surface segment with truncation.")
+      m, "Sphere",
+      "Spherical surface segment with optional truncation\n"
+      "at base and apex, and angular extent control.")
       .def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                     double, double, double, double, double>(),
            "p1"_a, "p2"_a, "p3"_a, "radius"_a, "base_truncation"_a,
-           "apex_truncation"_a, "start_angle"_a, "end_angle"_a)
-      .def_prop_rw("p1", &Sphere::get_p1, &Sphere::set_p1)
-      .def_prop_rw("p2", &Sphere::get_p2, &Sphere::set_p2)
-      .def_prop_rw("p3", &Sphere::get_p3, &Sphere::set_p3)
-      .def_prop_rw("radius", &Sphere::get_radius, &Sphere::set_radius)
+           "apex_truncation"_a, "start_angle"_a, "end_angle"_a,
+           "Create a sphere segment from center, axis, reference, radius,\n"
+           "truncation fractions, and angular extent.")
+      .def_prop_rw("p1", &Sphere::get_p1, &Sphere::set_p1,
+                   "Center position.")
+      .def_prop_rw("p2", &Sphere::get_p2, &Sphere::set_p2,
+                   "Axis direction reference point.")
+      .def_prop_rw("p3", &Sphere::get_p3, &Sphere::set_p3,
+                   "Reference point for angle origin.")
+      .def_prop_rw("radius", &Sphere::get_radius, &Sphere::set_radius,
+                   "Sphere radius.")
       .def_prop_rw("base_truncation", &Sphere::get_base_truncation,
-                    &Sphere::set_base_truncation)
+                    &Sphere::set_base_truncation,
+                    "Base truncation fraction (0 = no truncation).")
       .def_prop_rw("apex_truncation", &Sphere::get_apex_truncation,
-                    &Sphere::set_apex_truncation)
+                    &Sphere::set_apex_truncation,
+                    "Apex truncation fraction (0 = no truncation).")
       .def_prop_rw("start_angle", &Sphere::get_start_angle,
-                    &Sphere::set_start_angle)
-      .def_prop_rw("end_angle", &Sphere::get_end_angle, &Sphere::set_end_angle)
+                    &Sphere::set_start_angle,
+                    "Start angle [rad].")
+      .def_prop_rw("end_angle", &Sphere::get_end_angle, &Sphere::set_end_angle,
+                   "End angle [rad].")
       .def("is_valid", &Sphere::is_valid)
       .def("distance", &Sphere::distance, "point"_a)
       .def("distance_jacobian_cutted_surface",
