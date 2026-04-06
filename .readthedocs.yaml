@@ -7,7 +7,7 @@ build:
   jobs:
     post_install:
       - |
-        PROJECT_VERSION="$(python -c \"import tomllib; from pathlib import Path; print(tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])\")"
+        PROJECT_VERSION=$(python -c 'import tomllib; from pathlib import Path; print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])')
         pip install "pycanha-core==${PROJECT_VERSION}" || exit 183
 
 sphinx:
