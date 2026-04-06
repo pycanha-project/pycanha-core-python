@@ -1,13 +1,16 @@
 """Sphinx configuration for pycanha-core-python documentation."""
 
 from datetime import date
-from importlib.metadata import version as package_version
+from pathlib import Path
+import tomllib
 
 
 project = "pycanha-core"
 author = "Javier Piqueras Carreño"
 copyright = f"{date.today().year}, {author}"  # noqa: A001
-release = package_version("pycanha-core")
+release = tomllib.loads(
+	Path(__file__).resolve().parents[1].joinpath("pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
 version = ".".join(release.split(".")[:2])
 
 rst_epilog = f"\n.. |doc_release| replace:: {release}\n"

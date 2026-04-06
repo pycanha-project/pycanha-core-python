@@ -6,8 +6,7 @@ build:
     python: "3.13"
   jobs:
     post_install:
-      - |
-        python -c "import subprocess, sys, tomllib; from pathlib import Path; version = tomllib.loads(Path(\"pyproject.toml\").read_text(encoding=\"utf-8\"))[\"project\"][\"version\"]; raise SystemExit(subprocess.call([sys.executable, \"-m\", \"pip\", \"install\", f\"pycanha-core=={version}\"]))" || exit 183
+      - python -m pip install pycanha-core
 
 sphinx:
   configuration: docs/conf.py
