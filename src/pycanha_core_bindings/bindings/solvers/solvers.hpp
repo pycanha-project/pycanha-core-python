@@ -14,6 +14,7 @@
 #include "pycanha-core/solvers/tscn.hpp"
 #include "pycanha-core/solvers/tscnrl.hpp"
 #include "pycanha-core/solvers/tscnrlds.hpp"
+#include "pycanha-core/solvers/tscnrlds_jacobian.hpp"
 #include "pycanha-core/tmm/thermalmathematicalmodel.hpp"
 
 namespace nb = nanobind;
@@ -30,6 +31,7 @@ inline void register_solvers(nb::module_ &m) {
   using pycanha::TSCN;
   using pycanha::TSCNRL;
   using pycanha::TSCNRLDS;
+  using pycanha::TSCNRLDS_JACOBIAN;
 
   nb::class_<Solver>(m, "Solver", "Base class for thermal solvers.")
       .def_rw("MAX_ITERS", &Solver::MAX_ITERS)
@@ -81,6 +83,21 @@ inline void register_solvers(nb::module_ &m) {
       .def("initialize", &TSCNRLDS::initialize)
       .def("solve", &TSCNRLDS::solve)
       .def("deinitialize", &TSCNRLDS::deinitialize);
+
+  nb::class_<TSCNRLDS_JACOBIAN, TSCNRLDS>(
+      m, "TSCNRLDS_JACOBIAN",
+      "Transient solver: Crank-Nicolson Radiative Linearization Direct Sparse "
+      "with Jacobian output.")
+      .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
+           nb::keep_alive<1, 2>())
+      .def("initialize", &TSCNRLDS_JACOBIAN::initialize)
+      .def("solve", &TSCNRLDS_JACOBIAN::solve)
+      .def("deinitialize", &TSCNRLDS_JACOBIAN::deinitialize)
+      .def_prop_ro(
+          "parameter_names",
+          [](const TSCNRLDS_JACOBIAN &self) { return self.parameter_names(); })
+      .def_rw("output_jacobian_table_name",
+              &TSCNRLDS_JACOBIAN::output_jacobian_table_name);
 }
 
 } // namespace pycanha::bindings::solvers

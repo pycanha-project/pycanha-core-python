@@ -1,8 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/vector.h>
 
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/thermalnetwork.hpp"
@@ -19,6 +21,11 @@ using pycanha::ThermalNetwork;
 namespace pycanha::bindings::tmm {
 
 inline void ThermalNetwork_b(nb::module_ &m) {
+  using PairFlowMethod =
+      double (ThermalNetwork::*)(pycanha::Index, pycanha::Index);
+  using GroupFlowMethod = double (ThermalNetwork::*)(
+      const std::vector<pycanha::Index> &, const std::vector<pycanha::Index> &);
+
   nb::class_<ThermalNetwork>(m, "ThermalNetwork",
                              "Thermal network (nodes + couplings).")
       .def(nb::init<>())
@@ -43,6 +50,18 @@ inline void ThermalNetwork_b(nb::module_ &m) {
             return self.radiative_couplings();
           },
           nb::rv_policy::reference_internal)
+      .def("flow_conductive",
+           static_cast<PairFlowMethod>(&ThermalNetwork::flow_conductive),
+           "node_num_1"_a, "node_num_2"_a)
+      .def("flow_conductive",
+           static_cast<GroupFlowMethod>(&ThermalNetwork::flow_conductive),
+           "node_nums_1"_a, "node_nums_2"_a)
+      .def("flow_radiative",
+           static_cast<PairFlowMethod>(&ThermalNetwork::flow_radiative),
+           "node_num_1"_a, "node_num_2"_a)
+      .def("flow_radiative",
+           static_cast<GroupFlowMethod>(&ThermalNetwork::flow_radiative),
+           "node_nums_1"_a, "node_nums_2"_a)
       .def_prop_ro(
           "nodes_ptr",
           static_cast<std::shared_ptr<Nodes> (ThermalNetwork::*)() noexcept>(
