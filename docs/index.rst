@@ -8,7 +8,7 @@ It exposes the thermal model, parameter, solver, and geometry APIs directly in P
 This documentation is intentionally small for now: it introduces the package and
 provides a complete API reference for the released wheel published to PyPI.
 
-Current documented release: |release|.
+Current documented release: |doc_release|.
 
 .. grid:: 1 1 2 2
    :gutter: 3

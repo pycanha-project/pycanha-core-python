@@ -10,6 +10,8 @@ copyright = f"{date.today().year}, {author}"  # noqa: A001
 release = package_version("pycanha-core")
 version = ".".join(release.split(".")[:2])
 
+rst_epilog = f"\n.. |doc_release| replace:: {release}\n"
+
 extensions = [
 	"sphinx.ext.autodoc",
 	"sphinx.ext.autosummary",
