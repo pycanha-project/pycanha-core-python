@@ -1,0 +1,125 @@
+name: Test Read the Docs trigger
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      version_slug:
+        description: Read the Docs version slug to trigger
+        required: false
+        type: string
+  issue_comment:
+      types: [created]
+
+jobs:
+  trigger-rtd:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/test-rtd'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      RTD_PROJECT_SLUG: pycanha-core-python
+      RTD_API_URL: https://app.readthedocs.org/api/v3
+      RTD_TOKEN: ${{ secrets.RTD_TOKEN }}
+    steps:
+      - name: Resolve target version slug
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const eventName = context.eventName;
+            const inputVersion = context.payload.inputs?.version_slug || '';
+
+            if (eventName === 'push') {
+              core.setOutput('version_slug', context.ref.replace('refs/heads/', '').replace('refs/tags/', ''));
+              return;
+            }
+
+            if (eventName === 'workflow_dispatch') {
+              core.setOutput('version_slug', inputVersion || context.ref.replace('refs/heads/', '').replace('refs/tags/', ''));
+              return;
+            }
+
+            const body = context.payload.comment.body;
+            const match = body.match(/\/test-rtd(?:\s+([A-Za-z0-9._-]+))?/);
+            if (match && match[1]) {
+              core.setOutput('version_slug', match[1]);
+              return;
+            }
+
+            if (eventName === 'issue_comment') {
+              const pull = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.issue.number,
+              });
+              core.setOutput('version_slug', pull.data.head.ref);
+              return;
+            }
+
+            core.setFailed('No version slug could be resolved. Use /test-rtd or /test-rtd <version-slug> on a pull request comment.');
+
+      - name: Check configuration
+        run: |
+          test -n "${{ steps.resolve.outputs.version_slug }}"
+          if [ -z "$RTD_TOKEN" ]; then
+            echo "RTD_TOKEN secret is not configured."
+            exit 1
+          fi
+
+      - name: Sync Read the Docs versions
+        run: |
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Token $RTD_TOKEN" \
+            "$RTD_API_URL/projects/$RTD_PROJECT_SLUG/sync-versions/"
+
+      - name: Activate version if needed
+        run: |
+          VERSION_SLUG="${{ steps.resolve.outputs.version_slug }}"
+          for attempt in 1 2 3 4 5; do
+            status_code=$(curl --silent --output version.json --write-out '%{http_code}' \
+              -H "Authorization: Token $RTD_TOKEN" \
+              "$RTD_API_URL/projects/$RTD_PROJECT_SLUG/versions/$VERSION_SLUG/")
+            if [ "$status_code" = "200" ]; then
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              cat version.json
+              exit 1
+            fi
+            sleep 5
+          done
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('version.json').read_text(encoding='utf-8'))
+          print(f"Resolved RTD version: {payload['slug']} (active={payload['active']}, built={payload['built']})")
+          PY
+
+          curl --fail --silent --show-error \
+            -X PATCH \
+            -H "Authorization: Token $RTD_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"active": true, "hidden": false}' \
+            "$RTD_API_URL/projects/$RTD_PROJECT_SLUG/versions/$VERSION_SLUG/"
+
+      - name: Trigger Read the Docs build
+        run: |
+          VERSION_SLUG="${{ steps.resolve.outputs.version_slug }}"
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Token $RTD_TOKEN" \
+            "$RTD_API_URL/projects/$RTD_PROJECT_SLUG/versions/$VERSION_SLUG/builds/"
+
+      - name: Print dashboard URL
+        run: |
+          VERSION_SLUG="${{ steps.resolve.outputs.version_slug }}"
+          echo "Build requested for https://app.readthedocs.org/projects/$RTD_PROJECT_SLUG/builds/"
+          echo "Version URL: https://app.readthedocs.org/projects/$RTD_PROJECT_SLUG/version/$VERSION_SLUG/"

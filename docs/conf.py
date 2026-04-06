@@ -1,54 +1,82 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+"""Sphinx configuration for pycanha-core-python documentation."""
 
-# TODO: If pycanha_core is installed, the binary distribution will be imported,
-# not the "mockup" with the stubs. To build the documentation, pycanha_core cannot be installed.
-# To be fixed in the future.
+from datetime import date
+from importlib.metadata import version as package_version
 
-# Transfor pyi stub files to python files
-# Create the subdirectory pycanha_core
-# Copy ../src/pycanha_core/pycanha_core.pyi to pycanha_core/pycanha_core.py
-import os
-import sys
-import shutil
-import toml
-
-
-os.makedirs("pycanha_core", exist_ok=True)
-# shutil.copyfile("../src/pycanha_core/__init__.pyi", "pycanha_core/__init__.py")
-shutil.copyfile("../src/pycanha_core/gmm.pyi", "pycanha_core/gmm.py")
-shutil.copyfile("../src/pycanha_core/tmm.pyi", "pycanha_core/tmm.py")
-sys.path.insert(0, os.path.abspath("."))
-print(sys.path)
-
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-# import pycanha_core
 
 project = "pycanha-core"
-copyright = "2024, Javier Piqueras"
-author = "Javier Piqueras"
-release = toml.load("../pyproject.toml")["project"]["version"]
+author = "Javier Piqueras Carreño"
+copyright = f"{date.today().year}, {author}"  # noqa: A001
+release = package_version("pycanha-core")
+version = ".".join(release.split(".")[:2])
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+extensions = [
+	"sphinx.ext.autodoc",
+	"sphinx.ext.autosummary",
+	"sphinx.ext.napoleon",
+	"sphinx.ext.intersphinx",
+	"sphinx.ext.viewcode",
+	"myst_parser",
+	"sphinx_design",
+]
 
-extensions = ["sphinx.ext.autodoc", "myst_parser"]
+templates_path = ["_templates"]
+exclude_patterns = [
+	"_build",
+	"Thumbs.db",
+	".DS_Store",
+	"installation.md",
+	"modules.rst",
+	"pycanha_core.rst",
+]
 
-
-# templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
-# If true, the current module name will be prepended to all description
-# unit titles (such as .. function::).
+autodoc_default_options = {
+	"members": True,
+	"undoc-members": False,
+	"show-inheritance": True,
+}
+autodoc_member_order = "bysource"
+autodoc_typehints = "description"
+autosummary_generate = True
 add_module_names = False
 
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_use_param = False
+napoleon_use_rtype = False
 
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+intersphinx_mapping = {
+	"python": ("https://docs.python.org/3", None),
+	"numpy": ("https://numpy.org/doc/stable", None),
+}
 
-html_theme = "alabaster"
-# html_static_path = ["_static"]
+html_theme = "pydata_sphinx_theme"
+html_static_path = ["_static"]
+html_theme_options = {
+	"github_url": "https://github.com/pycanha-project/pycanha-core-python",
+	"logo": {
+		"text": "pycanha-core",
+	},
+	"navigation_with_keys": False,
+	"show_toc_level": 2,
+	"navbar_align": "left",
+	"navbar_end": ["theme-switcher", "navbar-icon-links"],
+	"secondary_sidebar_items": ["page-toc", "edit-this-page"],
+	"footer_start": ["copyright"],
+	"footer_end": ["theme-version"],
+	"use_edit_page_button": True,
+	"icon_links": [
+		{
+			"name": "PyPI",
+			"url": "https://pypi.org/project/pycanha-core/",
+			"icon": "fa-solid fa-box",
+		},
+	],
+}
+html_context = {
+	"github_user": "pycanha-project",
+	"github_repo": "pycanha-core-python",
+	"github_version": "main",
+	"doc_path": "docs",
+}
+html_show_sourcelink = False
