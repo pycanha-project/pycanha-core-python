@@ -145,9 +145,9 @@ _EXTENSION.__dict__.setdefault(
         "LogLevel",
         "Logger",
         "get_logger",
-        "get_profiling_logger",
+        "get_python_logger",
         "set_logger_level",
-        "set_profiling_logger_level",
+        "set_python_logger_level",
         "print_package_info",
     ],
 )

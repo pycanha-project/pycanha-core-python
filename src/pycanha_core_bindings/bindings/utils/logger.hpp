@@ -31,7 +31,7 @@ inline void register_logging(nb::module_ &m) {
       .value("OFF", LogLevel::off, "Disable all logging.")
       .export_values();
 
-  nb::class_<Logger>(m, "Logger", "pycanha-core logger.")
+  nb::class_<Logger>(m, "Logger", "pycanha-core logger wrapper.")
       .def_prop_ro(
           "name", [](const Logger &self) { return std::string(self.name()); },
           "Logger name.")
@@ -83,12 +83,12 @@ inline void register_logging(nb::module_ &m) {
 
   m.def("get_logger", &pycanha::get_logger,
         "Return the main pycanha-core logger.");
-  m.def("get_profiling_logger", &pycanha::get_profiling_logger,
-        "Return the profiling logger.");
+  m.def("get_python_logger", &pycanha::get_python_logger,
+        "Return the Python-facing logger.");
   m.def("set_logger_level", &pycanha::set_logger_level, "level"_a,
         "Set the main logger runtime level.");
-  m.def("set_profiling_logger_level", &pycanha::set_profiling_logger_level,
-        "level"_a, "Set the profiling logger runtime level.");
+  m.def("set_python_logger_level", &pycanha::set_python_logger_level, "level"_a,
+        "Set the Python logger runtime level.");
 }
 
 } // namespace pycanha::bindings::utils

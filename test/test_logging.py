@@ -12,12 +12,12 @@ def test_get_logger_roundtrip():
     assert logger.should_log(pcc.LogLevel.INFO) is True
 
 
-def test_get_profiling_logger_roundtrip():
-    logger = pcc.get_profiling_logger()
-    assert logger.name == "pycanha-core.profiling"
+def test_get_python_logger_roundtrip():
+    logger = pcc.get_python_logger()
+    assert logger.name == "pycanha-python"
 
-    pcc.set_profiling_logger_level(pcc.LogLevel.INFO)
+    pcc.set_python_logger_level(pcc.LogLevel.INFO)
     assert logger.level == pcc.LogLevel.INFO
 
-    logger.info("profiling logger smoke test")
+    logger.info("python logger smoke test")
     logger.flush()

@@ -14,7 +14,8 @@ def test_logging_exports_exist():
     assert hasattr(pcc, "Logger")
     assert hasattr(pcc, "LogLevel")
     assert hasattr(pcc, "get_logger")
-    assert hasattr(pcc, "get_profiling_logger")
+    assert hasattr(pcc, "get_python_logger")
+    assert hasattr(pcc, "set_python_logger_level")
 
 
 def test_nodetype_reexported():

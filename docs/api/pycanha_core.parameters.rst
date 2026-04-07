@@ -55,6 +55,11 @@ Formulas
    :special-members: __init__
    :exclude-members: __dict__, __weakref__, __module__
 
+.. autoclass:: ExpressionFormula
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
 .. autoclass:: Formulas
    :members:
    :special-members: __init__
