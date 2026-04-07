@@ -256,7 +256,7 @@ jobs:
 
     name: windows with Python ${{ matrix.python-version }} built and tests
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Setup python
