@@ -1,11 +1,11 @@
 """Test bindings for Formula, ParameterFormula, ValueFormula, Formulas."""
 
-import pytest
-
 import pycanha_core as pcc
+import pytest
 
 AttributeEntity = pcc.parameters.AttributeEntity
 ConductiveCouplingEntity = pcc.parameters.ConductiveCouplingEntity
+ExpressionFormula = pcc.parameters.ExpressionFormula
 Formulas = pcc.parameters.Formulas
 Node = pcc.tmm.Node
 ParameterFormula = pcc.parameters.ParameterFormula
@@ -122,6 +122,36 @@ class TestValueFormula:
 
 
 # ---------------------------------------------------------------------------
+# ExpressionFormula
+# ---------------------------------------------------------------------------
+class TestExpressionFormula:
+    def test_apply_formula(self, tmm_with_params):
+        tmm = tmm_with_params
+        tmm.parameters.add_parameter("offset", 2.0)
+        entity = AttributeEntity(tmm.network, "QI", 1)
+        formula = ExpressionFormula(entity, tmm.parameters, "k + offset")
+
+        assert formula.expression == "k + offset"
+        assert formula.parameter_dependencies == ["k", "offset"]
+
+        formula.apply_formula()
+
+        assert tmm.nodes.get_qi(1) == pytest.approx(27.0)
+        assert formula.get_value() == pytest.approx(27.0)
+
+    def test_compile_and_calculate_derivatives(self, tmm_with_params):
+        tmm = tmm_with_params
+        tmm.parameters.add_parameter("offset", 2.0)
+        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        formula = ExpressionFormula(entity, tmm.parameters, "k * offset")
+
+        formula.compile_formula()
+        formula.calculate_derivatives()
+
+        assert formula.get_derivative_values() == pytest.approx([2.0, 25.0])
+
+
+# ---------------------------------------------------------------------------
 # Formulas collection
 # ---------------------------------------------------------------------------
 class TestFormulas:
@@ -156,9 +186,9 @@ class TestFormulas:
         for value in [5.0, 10.0, 20.0]:
             tmm.parameters.set_parameter("k", value)
             tmm.formulas.apply_formulas()
-            assert tmm.conductive_couplings.get_coupling_value(
-                1, 2
-            ) == pytest.approx(value)
+            assert tmm.conductive_couplings.get_coupling_value(1, 2) == pytest.approx(
+                value
+            )
 
     def test_parameter_dependencies_property(self, tmm_with_params):
         tmm = tmm_with_params
@@ -176,3 +206,21 @@ class TestFormulas:
         flist = tmm.formulas.formulas
         assert isinstance(flist, list)
         assert len(flist) == 1
+
+    def test_calculate_derivatives(self, tmm_with_params):
+        tmm = tmm_with_params
+        tmm.parameters.add_parameter("offset", 2.0)
+        entity = AttributeEntity(tmm.network, "QI", 1)
+        formula = ExpressionFormula(entity, tmm.parameters, "k + offset")
+
+        tmm.formulas.add_formula(formula)
+        tmm.formulas.apply_formulas()
+        tmm.formulas.calculate_derivatives()
+
+        stored_formula = tmm.formulas.formulas[0]
+        assert stored_formula.get_derivative_values() == pytest.approx([1.0, 1.0])
+
+        deps = tmm.formulas.parameter_dependencies
+        assert set(deps) == {"k", "offset"}
+        assert len(deps["k"]) == 1
+        assert len(deps["offset"]) == 1

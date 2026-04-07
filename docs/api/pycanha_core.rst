@@ -25,11 +25,11 @@ Utilities
 
 .. autofunction:: get_logger
 
-.. autofunction:: get_profiling_logger
+.. autofunction:: get_python_logger
 
 .. autofunction:: set_logger_level
 
-.. autofunction:: set_profiling_logger_level
+.. autofunction:: set_python_logger_level
 
 Convenience exports
 -------------------
