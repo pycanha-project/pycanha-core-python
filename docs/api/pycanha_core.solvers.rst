@@ -45,3 +45,9 @@ The ``solvers`` submodule exposes the steady-state and transient solver classes.
    :special-members: __init__
    :show-inheritance:
    :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: TSCNRLDS_JACOBIAN
+   :members:
+   :special-members: __init__
+   :show-inheritance:
+   :exclude-members: __dict__, __weakref__, __module__

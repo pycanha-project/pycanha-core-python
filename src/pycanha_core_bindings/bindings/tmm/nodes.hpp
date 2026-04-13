@@ -34,11 +34,12 @@ inline void Node_b(nb::module_ &m) {
              "Boundary node with fixed temperature.")
       .export_values();
 
-  nb::class_<Node>(m, "Node",
-                   "Thermal node representing a lumped thermal element.\n\n"
-                   "A node stores temperature, thermal capacity, heat loads,\n"
-                   "optical properties, area, and position. It can be standalone\n"
-                   "or associated with a Nodes container.")
+  nb::class_<Node>(
+      m, "Node",
+      "Thermal node representing a lumped thermal element.\n\n"
+      "A node stores temperature, thermal capacity, heat loads,\n"
+      "optical properties, area, and position. It can be standalone\n"
+      "or associated with a Nodes container.")
       .def(nb::init<NodeNum>(), "node_num"_a,
            "Create a standalone node with the given user node number.")
       .def(nb::init<const Node &>(), "other"_a, "Copy constructor.")
@@ -51,38 +52,34 @@ inline void Node_b(nb::module_ &m) {
             self.set_type(static_cast<char>(node_type));
           },
           "Node type (DIFFUSIVE or BOUNDARY).")
-      .def_prop_rw("T", &Node::get_T, &Node::set_T,
-                   "Node temperature [K].")
-      .def_prop_rw("C", &Node::get_C, &Node::set_C,
-                   "Thermal capacity [J/K].")
+      .def_prop_rw("T", &Node::get_T, &Node::set_T, "Node temperature [K].")
+      .def_prop_rw("C", &Node::get_C, &Node::set_C, "Thermal capacity [J/K].")
       .def_prop_rw("capacity", &Node::get_C, &Node::set_C,
                    "Alias for C (thermal capacity) [J/K].")
-      .def_prop_rw("qs", &Node::get_qs, &Node::set_qs,
-                   "Solar heat load [W].")
-      .def_prop_rw("qa", &Node::get_qa, &Node::set_qa,
-                   "Albedo heat load [W].")
+      .def_prop_rw("qs", &Node::get_qs, &Node::set_qs, "Solar heat load [W].")
+      .def_prop_rw("qa", &Node::get_qa, &Node::set_qa, "Albedo heat load [W].")
       .def_prop_rw("qe", &Node::get_qe, &Node::set_qe,
                    "Earth IR heat load [W].")
       .def_prop_rw("qi", &Node::get_qi, &Node::set_qi,
                    "Internal dissipation heat load [W].")
       .def_prop_rw("qr", &Node::get_qr, &Node::set_qr,
                    "Other (residual) heat load [W].")
-      .def_prop_rw("a", &Node::get_a, &Node::set_a,
-                   "Node area [m^2].")
-      .def_prop_rw("fx", &Node::get_fx, &Node::set_fx,
-                   "Node X coordinate [m].")
-      .def_prop_rw("fy", &Node::get_fy, &Node::set_fy,
-                   "Node Y coordinate [m].")
-      .def_prop_rw("fz", &Node::get_fz, &Node::set_fz,
-                   "Node Z coordinate [m].")
-      .def_prop_rw("eps", &Node::get_eps, &Node::set_eps,
-                   "IR emissivity [-].")
+      .def_prop_rw("a", &Node::get_a, &Node::set_a, "Node area [m^2].")
+      .def_prop_rw("fx", &Node::get_fx, &Node::set_fx, "Node X coordinate [m].")
+      .def_prop_rw("fy", &Node::get_fy, &Node::set_fy, "Node Y coordinate [m].")
+      .def_prop_rw("fz", &Node::get_fz, &Node::set_fz, "Node Z coordinate [m].")
+      .def_prop_rw("eps", &Node::get_eps, &Node::set_eps, "IR emissivity [-].")
       .def_prop_rw("aph", &Node::get_aph, &Node::set_aph,
                    "Solar absorptivity [-].")
       .def_prop_rw("literal_C", &Node::get_literal_C, &Node::set_literal_C,
                    "Literal (formula) representation of thermal capacity.")
-      .def("int_node_num", &Node::get_int_node_num,
-           "Return the internal (solver) node index.")
+      .def(
+          "int_node_num",
+          [](Node &self) {
+            const auto internal_node_num = self.get_int_node_num();
+            return internal_node_num.has_value() ? *internal_node_num : -1;
+          },
+          "Return the internal (solver) node index, or -1 if standalone.")
       .def(
           "parent_pointer",
           [](Node &self) { return self.get_parent_pointer().lock(); },
@@ -93,12 +90,13 @@ inline void Node_b(nb::module_ &m) {
 }
 
 inline void Nodes_b(nb::module_ &m) {
-  nb::class_<Nodes>(m, "Nodes",
-                    "Collection of thermal nodes.\n\n"
-                    "Stores nodes efficiently using dense vectors for temperature\n"
-                    "and capacity, and sparse vectors for heat loads and other\n"
-                    "attributes. Nodes are auto-sorted: diffusive nodes first,\n"
-                    "then boundary nodes.")
+  nb::class_<Nodes>(
+      m, "Nodes",
+      "Collection of thermal nodes.\n\n"
+      "Stores nodes efficiently using dense vectors for temperature\n"
+      "and capacity, and sparse vectors for heat loads and other\n"
+      "attributes. Nodes are auto-sorted: diffusive nodes first,\n"
+      "then boundary nodes.")
       .def(nb::init<>(), "Create an empty Nodes container.")
       .def_prop_rw(
           "estimated_number_of_nodes",
@@ -154,8 +152,7 @@ inline void Nodes_b(nb::module_ &m) {
            "Get other (residual) heat load [W] of a node.")
       .def("set_qr", &Nodes::set_qr, "node_num"_a, "value"_a,
            "Set other (residual) heat load [W] of a node.")
-      .def("get_a", &Nodes::get_a, "node_num"_a,
-           "Get area [m^2] of a node.")
+      .def("get_a", &Nodes::get_a, "node_num"_a, "Get area [m^2] of a node.")
       .def("set_a", &Nodes::set_a, "node_num"_a, "value"_a,
            "Set area [m^2] of a node.")
       .def("get_fx", &Nodes::get_fx, "node_num"_a,
@@ -191,8 +188,7 @@ inline void Nodes_b(nb::module_ &m) {
            "Get a Node object by user node number.")
       .def("get_node_from_idx", &Nodes::get_node_from_idx, nb::rv_policy::move,
            "idx"_a, "Get a Node object by internal index.")
-      .def_prop_ro("num_nodes", &Nodes::get_num_nodes,
-                   "Total number of nodes.")
+      .def_prop_ro("num_nodes", &Nodes::get_num_nodes, "Total number of nodes.")
       .def_prop_ro("num_diff_nodes", &Nodes::get_num_diff_nodes,
                    "Number of diffusive nodes.")
       .def_prop_ro("num_bound_nodes", &Nodes::get_num_bound_nodes,
@@ -261,8 +257,7 @@ inline void Nodes_b(nb::module_ &m) {
             return reinterpret_cast<std::uintptr_t>(
                 self.get_a_value_ref(node_num));
           },
-          "node_num"_a,
-          "Memory address of the area value for formula binding.")
+          "node_num"_a, "Memory address of the area value for formula binding.")
       .def(
           "get_fx_value_pointer",
           [](Nodes &self, int node_num) {
@@ -302,7 +297,8 @@ inline void Nodes_b(nb::module_ &m) {
                 self.get_aph_value_ref(node_num));
           },
           "node_num"_a,
-          "Memory address of the solar absorptivity value for formula binding.");
+          "Memory address of the solar absorptivity value for formula "
+          "binding.");
 }
 
 inline void register_nodes(nb::module_ &m) {

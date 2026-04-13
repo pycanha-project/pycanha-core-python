@@ -113,8 +113,7 @@ inline void register_parameters(nb::module_ &m) {
       .def("get_size_of_parameter", &Parameters::get_size_of_parameter,
            "name"_a, "Get the byte size of a parameter's stored value.")
       .def("is_internal_parameter", &Parameters::is_internal_parameter,
-           "name"_a,
-           "Check whether a parameter is marked as internal.")
+           "name"_a, "Check whether a parameter is marked as internal.")
       .def_prop_ro(
           "data",
           [to_python](Parameters &self) {
@@ -154,15 +153,18 @@ inline void register_entities(nb::module_ &m) {
       "factory methods (Entity.make, Entity.t, Entity.gl, etc.) or\n"
       "Entity.from_string to create instances.")
       // ── Static factory methods ──────────────────────────────────────
+      .def_static("make", &Entity::make, "network"_a, "type"_a,
+                  "node_1"_a = Entity::invalid_node,
+                  "node_2"_a = Entity::invalid_node, nb::keep_alive<0, 1>(),
+                  "Create an entity from type and node numbers.")
       .def_static(
-          "make", &Entity::make, "network"_a, "type"_a,
-          "node_1"_a = Entity::invalid_node,
-          "node_2"_a = Entity::invalid_node, nb::keep_alive<0, 1>(),
-          "Create an entity from type and node numbers.")
-      .def_static("from_string", &Entity::from_string, "network"_a, "text"_a,
-                  nb::keep_alive<0, 1>(),
-                  "Parse an entity from string (e.g. 'T1', 'GL(1,2)').\n\n"
-                  "Returns None if the string cannot be parsed.")
+          "from_string",
+          [](ThermalNetwork &network, const std::string &text) {
+            return Entity::from_string(network, text);
+          },
+          "network"_a, "text"_a, nb::keep_alive<0, 1>(),
+          "Parse an entity from string (e.g. 'T1', 'GL(1,2)').\n\n"
+          "Returns None if the string cannot be parsed.")
       .def_static("from_internal_symbol", &Entity::from_internal_symbol,
                   "network"_a, "symbol"_a, nb::keep_alive<0, 1>(),
                   "Parse an entity from internal symbol format.")
@@ -192,8 +194,7 @@ inline void register_entities(nb::module_ &m) {
                   nb::keep_alive<0, 1>(),
                   "Create a conductive coupling entity.")
       .def_static("gr", &Entity::gr, "network"_a, "node_1"_a, "node_2"_a,
-                  nb::keep_alive<0, 1>(),
-                  "Create a radiative coupling entity.")
+                  nb::keep_alive<0, 1>(), "Create a radiative coupling entity.")
       // Long-name convenience factories
       .def_static("temperature", &Entity::temperature, "network"_a, "node"_a,
                   nb::keep_alive<0, 1>(), "Alias for Entity.t().")
@@ -210,19 +211,14 @@ inline void register_entities(nb::module_ &m) {
       .def_static("other_heat", &Entity::other_heat, "network"_a, "node"_a,
                   nb::keep_alive<0, 1>(), "Alias for Entity.qr().")
       .def_static("conductive", &Entity::conductive, "network"_a, "node_1"_a,
-                  "node_2"_a, nb::keep_alive<0, 1>(),
-                  "Alias for Entity.gl().")
+                  "node_2"_a, nb::keep_alive<0, 1>(), "Alias for Entity.gl().")
       .def_static("radiative", &Entity::radiative, "network"_a, "node_1"_a,
-                  "node_2"_a, nb::keep_alive<0, 1>(),
-                  "Alias for Entity.gr().")
+                  "node_2"_a, nb::keep_alive<0, 1>(), "Alias for Entity.gr().")
       // ── Instance methods ────────────────────────────────────────────
       .def_prop_ro("type", &Entity::type,
                    "Entity type (EntityType enum value).")
       .def_prop_ro(
-          "token",
-          [](const Entity &self) {
-            return std::string(self.token());
-          },
+          "token", [](const Entity &self) { return std::string(self.token()); },
           "Entity type token string (e.g. 'T', 'GL').")
       .def_prop_ro("node_1", &Entity::node_1, "First node number.")
       .def_prop_ro("node_2", &Entity::node_2,
@@ -250,10 +246,9 @@ inline void register_entities(nb::module_ &m) {
           },
           "Memory address of the referenced value for formula binding.")
       .def("__eq__", &Entity::operator==, "other"_a)
-      .def("__repr__",
-           [](const Entity &self) {
-             return "<Entity " + self.string_representation() + ">";
-           });
+      .def("__repr__", [](const Entity &self) {
+        return "<Entity " + self.string_representation() + ">";
+      });
 }
 
 inline void register_formulas(nb::module_ &m) {
@@ -283,10 +278,8 @@ inline void register_formulas(nb::module_ &m) {
       .def("get_derivative_values", &derivative_values_to_object<Formula>,
            "Get derivative values for sensitivity analysis, or None.")
       .def_prop_ro(
-          "entity",
-          [](Formula &self) -> Entity & { return self.entity(); },
-          nb::rv_policy::reference_internal,
-          "Reference to the target Entity.")
+          "entity", [](Formula &self) -> Entity & { return self.entity(); },
+          nb::rv_policy::reference_internal, "Reference to the target Entity.")
       .def_prop_ro(
           "parameter_dependencies",
           [](const Formula &self) { return self.parameter_dependencies(); },
