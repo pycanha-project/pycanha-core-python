@@ -5,6 +5,7 @@ import pytest
 
 import pycanha_core as pcc
 
+DenseTimeSeries = pcc.tmm.DenseTimeSeries
 Node = pcc.tmm.Node
 ThermalData = pcc.tmm.ThermalData
 ThermalNetwork = pcc.tmm.ThermalNetwork
@@ -26,47 +27,50 @@ class TestThermalData:
     def test_construction_with_network(self, td_with_network):
         assert td_with_network is not None
 
-    def test_create_and_get_table(self, td_with_network):
+    def test_add_and_get_dense_time_series(self, td_with_network):
         td = td_with_network
-        td.create_new_table("test", 5, 3)
-        assert td.has_table("test") is True
-        table = td.get_table("test")
-        assert table.shape == (5, 3)
+        td.add_dense_time_series("test", 5, 3)
+        assert td.has_dense_time_series("test") is True
+        series = td.get_dense_time_series("test")
+        assert series.num_timesteps == 5
+        assert series.num_columns == 3
 
-    def test_has_table_false(self, td_with_network):
-        assert td_with_network.has_table("nonexistent") is False
+    def test_has_dense_time_series_false(self, td_with_network):
+        assert td_with_network.has_dense_time_series("nonexistent") is False
 
-    def test_remove_table(self, td_with_network):
+    def test_remove_dense_time_series(self, td_with_network):
         td = td_with_network
-        td.create_new_table("to_remove", 2, 2)
-        assert td.has_table("to_remove") is True
-        td.remove_table("to_remove")
-        assert td.has_table("to_remove") is False
+        td.add_dense_time_series("to_remove", 2, 2)
+        assert td.has_dense_time_series("to_remove") is True
+        td.remove_dense_time_series("to_remove")
+        assert td.has_dense_time_series("to_remove") is False
 
-    def test_create_reset_table(self, td_with_network):
+    def test_dense_time_series_reset(self, td_with_network):
         td = td_with_network
-        td.create_new_table("resettable", 3, 3)
-        table = td.get_table("resettable")
-        table[0, 0] = 999.0
-        td.create_reset_table("resettable", 3, 3)
-        table2 = td.get_table("resettable")
-        assert table2[0, 0] == pytest.approx(0.0)
+        td.add_dense_time_series("resettable", 3, 3)
+        series = td.get_dense_time_series("resettable")
+        series.values[0, 0] = 999.0
+        series.reset()
+        # After reset, re-add with same dimensions
+        td.add_dense_time_series("resettable", 3, 3)
+        series2 = td.get_dense_time_series("resettable")
+        assert series2.values[0, 0] == pytest.approx(0.0)
 
-    def test_table_is_writable(self, td_with_network):
+    def test_dense_time_series_is_writable(self, td_with_network):
         td = td_with_network
-        td.create_new_table("writable", 2, 2)
-        table = td.get_table("writable")
-        table[0, 0] = 42.0
-        table[1, 1] = 99.0
+        td.add_dense_time_series("writable", 2, 2)
+        series = td.get_dense_time_series("writable")
+        series.values[0, 0] = 42.0
+        series.values[1, 1] = 99.0
         # Re-fetch to confirm write went through
-        table2 = td.get_table("writable")
-        assert table2[0, 0] == pytest.approx(42.0)
-        assert table2[1, 1] == pytest.approx(99.0)
+        series2 = td.get_dense_time_series("writable")
+        assert series2.values[0, 0] == pytest.approx(42.0)
+        assert series2.values[1, 1] == pytest.approx(99.0)
 
     def test_size(self, td_with_network):
         td = td_with_network
-        td.create_new_table("a", 1, 1)
-        td.create_new_table("b", 1, 1)
+        td.add_dense_time_series("a", 1, 1)
+        td.add_dense_time_series("b", 1, 1)
         assert td.size == 2
 
     def test_network_property(self, td_with_network):
@@ -79,3 +83,17 @@ class TestThermalData:
         network.add_node(Node(1))
         td.associate(network)
         assert td.network.nodes.num_nodes == 1
+
+    def test_dense_time_series_times_and_values(self, td_with_network):
+        td = td_with_network
+        td.add_dense_time_series("ts", 3, 2)
+        series = td.get_dense_time_series("ts")
+        series.times[0] = 0.0
+        series.times[1] = 1.0
+        series.times[2] = 2.0
+        series.values[0, 0] = 10.0
+        series.values[1, 0] = 20.0
+        series.values[2, 0] = 30.0
+
+        np.testing.assert_allclose(series.times, [0.0, 1.0, 2.0])
+        np.testing.assert_allclose(series.values[:, 0], [10.0, 20.0, 30.0])

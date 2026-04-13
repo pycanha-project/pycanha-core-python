@@ -23,8 +23,8 @@ def make_jacobian_example_model():
     model.parameters.add_parameter("k", 1.0)
     model.parameters.add_parameter("C", 1.0)
 
-    conductive_entity = pcc.parameters.ConductiveCouplingEntity(model.network, 1, 2)
-    capacity_entity = pcc.parameters.AttributeEntity(model.network, "C", 1)
+    conductive_entity = pcc.parameters.Entity.gl(model.network, 1, 2)
+    capacity_entity = pcc.parameters.Entity.c(model.network, 1)
 
     model.formulas.add_formula(
         pcc.parameters.ParameterFormula(conductive_entity, model.parameters, "k")
@@ -37,8 +37,8 @@ def make_jacobian_example_model():
     return model
 
 
-def find_time_row(table, time_value):
-    matching_rows = np.where(np.isclose(table[:, 0], time_value, atol=1e-12))[0]
+def find_time_row(times, values, time_value):
+    matching_rows = np.where(np.isclose(times, time_value, atol=1e-12))[0]
     if matching_rows.size == 0:
         raise AssertionError(f"Time sample {time_value} was not produced by the solver")
     return int(matching_rows[0])
@@ -59,47 +59,50 @@ class TestTSCNRLDSJacobian:
         solver.initialize()
         solver.solve()
 
-        assert model.thermal_data.has_table("TSCNRLDS_OUTPUT") is True
-        assert model.thermal_data.has_table("TSCNRLDS_JACOBIAN_OUTPUT") is True
+        output_name = solver.output_table_name
+        jacobian_name = solver.output_jacobian_table_name
+        assert model.thermal_data.has_dense_time_series(output_name) is True
+        assert model.thermal_data.has_dense_time_series(jacobian_name) is True
         assert solver.parameter_names == ["k", "C"]
 
-        temperature_output = model.thermal_data.get_table("TSCNRLDS_OUTPUT")
-        jacobian_output = model.thermal_data.get_table("TSCNRLDS_JACOBIAN_OUTPUT")
+        temp_series = model.thermal_data.get_dense_time_series(output_name)
+        jac_series = model.thermal_data.get_dense_time_series(jacobian_name)
 
-        assert temperature_output.shape[1] == 3
-        assert jacobian_output.shape[1] == 3
-        assert jacobian_output.shape[0] >= 2
+        temp_times = temp_series.times
+        temp_values = temp_series.values
+        jac_times = jac_series.times
+        jac_values = jac_series.values
 
-        expected_temperature_samples = np.array(
-            [
-                [0.0, 0.0, 1.0],
-                [1.0, 1.26424718, 1.0],
-                [2.0, 1.72933389, 1.0],
-                [3.0, 1.90042832, 1.0],
-                [4.0, 1.96336993, 1.0],
-                [5.0, 1.98652466, 1.0],
-            ]
-        )
-        expected_jacobian_samples = np.array(
-            [
-                [0.0, 0.0, 0.0],
-                [1.0, 0.10364756, -0.73577107],
-                [2.0, -0.32332125, -0.54134564],
-                [3.0, -0.65149169, -0.29872244],
-                [4.0, -0.83516103, -0.14652392],
-                [5.0, -0.92588396, -0.06737837],
-            ]
-        )
+        assert temp_values.shape[1] == 2  # 2 nodes (times stored separately)
+        assert jac_values.shape[1] == 2   # 2 parameters
+        assert jac_values.shape[0] >= 2
 
-        for expected_temperature, expected_jacobian in zip(
+        expected_temperature_samples = [
+            (0.0, [0.0, 1.0]),
+            (1.0, [1.26424718, 1.0]),
+            (2.0, [1.72933389, 1.0]),
+            (3.0, [1.90042832, 1.0]),
+            (4.0, [1.96336993, 1.0]),
+            (5.0, [1.98652466, 1.0]),
+        ]
+        expected_jacobian_samples = [
+            (0.0, [0.0, 0.0]),
+            (1.0, [0.10364756, -0.73577107]),
+            (2.0, [-0.32332125, -0.54134564]),
+            (3.0, [-0.65149169, -0.29872244]),
+            (4.0, [-0.83516103, -0.14652392]),
+            (5.0, [-0.92588396, -0.06737837]),
+        ]
+
+        for (t, exp_temp), (_, exp_jac) in zip(
             expected_temperature_samples, expected_jacobian_samples, strict=True
         ):
-            row = find_time_row(temperature_output, expected_temperature[0])
+            row = find_time_row(temp_times, temp_values, t)
             np.testing.assert_allclose(
-                temperature_output[row], expected_temperature, atol=5e-6
+                temp_values[row], exp_temp, atol=5e-6
             )
             np.testing.assert_allclose(
-                jacobian_output[row], expected_jacobian, atol=5e-6
+                jac_values[row], exp_jac, atol=5e-6
             )
 
         solver.deinitialize()

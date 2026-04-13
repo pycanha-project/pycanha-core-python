@@ -14,6 +14,10 @@
 #include "pycanha-core/io/esatan.hpp"
 #include "pycanha-core/parameters/formulas.hpp"
 #include "pycanha-core/parameters/parameters.hpp"
+#include "pycanha-core/parameters/variable.hpp"
+#include "pycanha-core/thermaldata/dense_time_series.hpp"
+#include "pycanha-core/thermaldata/lookup_table.hpp"
+#include "pycanha-core/thermaldata/sparse_time_series.hpp"
 #include "pycanha-core/thermaldata/thermaldata.hpp"
 #include "pycanha-core/tmm/coupling.hpp"
 #include "pycanha-core/tmm/node.hpp"
@@ -26,42 +30,23 @@ using namespace nanobind::literals; // NOLINT(build/namespaces)
 namespace pycanha::bindings::tmm {
 
 inline void register_thermal_data(nb::module_ &m) {
+  using pycanha::DenseTimeSeries;
+  using pycanha::Index;
+  using pycanha::LookupTable1D;
+  using pycanha::LookupTableVec1D;
+  using pycanha::SparseTimeSeries;
   using pycanha::ThermalData;
   using pycanha::ThermalNetwork;
 
-  nb::class_<ThermalData>(m, "ThermalData",
-                        "Storage for simulation result tables.\n\n"
-                        "Each table is a 2D matrix (rows x cols) identified by\n"
-                        "a string name. Solvers write output data here.")
+  nb::class_<ThermalData>(
+      m, "ThermalData",
+      "Storage for simulation data: dense/sparse time series and\n"
+      "lookup tables, each identified by a string name.")
       .def(nb::init<>(), "Create an empty ThermalData store.")
       .def(nb::init<std::shared_ptr<ThermalNetwork>>(), "network"_a,
            "Create a ThermalData store associated with a network.")
       .def("associate", &ThermalData::associate, "network"_a,
            "Associate this ThermalData with a ThermalNetwork.")
-      .def("create_new_table", &ThermalData::create_new_table, "name"_a,
-           "rows"_a, "cols"_a,
-           "Create a new named table with the given dimensions.")
-      .def("create_reset_table", &ThermalData::create_reset_table, "name"_a,
-           "rows"_a, "cols"_a,
-           "Create a table or reset it if it already exists.")
-      .def("remove_table", &ThermalData::remove_table, "name"_a,
-           "Remove a table by name.")
-      .def(
-          "get_table",
-          [](ThermalData &self, const std::string &name)
-              -> ThermalData::MatrixDataType & { return self.get_table(name); },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a mutable reference to a table by name.")
-      .def(
-          "get_table_const",
-          [](const ThermalData &self,
-             const std::string &name) -> const ThermalData::MatrixDataType & {
-            return self.get_table(name);
-          },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a read-only reference to a table by name.")
-      .def("has_table", &ThermalData::has_table, "name"_a,
-           "Check whether a table with the given name exists.")
       .def_prop_ro("network_ptr", &ThermalData::network_ptr,
                    "Shared pointer to the associated ThermalNetwork.")
       .def_prop_ro(
@@ -70,22 +55,119 @@ inline void register_thermal_data(nb::module_ &m) {
           nb::rv_policy::reference_internal,
           "Reference to the associated ThermalNetwork.")
       .def_prop_ro("size", &ThermalData::size,
-                   "Number of stored tables.");
+                   "Total number of stored data objects.")
+
+      // ── Dense Time Series ───────────────────────────────────────────
+      .def(
+          "add_dense_time_series",
+          static_cast<DenseTimeSeries &(ThermalData::*)(
+              const std::string &, DenseTimeSeries)>(
+              &ThermalData::add_dense_time_series),
+          "name"_a, "series"_a, nb::rv_policy::reference_internal,
+          "Add or replace a named DenseTimeSeries.")
+      .def(
+          "add_dense_time_series",
+          static_cast<DenseTimeSeries &(ThermalData::*)(const std::string &,
+                                                         Index, Index)>(
+              &ThermalData::add_dense_time_series),
+          "name"_a, "num_timesteps"_a, "num_columns"_a,
+          nb::rv_policy::reference_internal,
+          "Create and add a DenseTimeSeries with the given dimensions.")
+      .def(
+          "get_dense_time_series",
+          [](ThermalData &self, const std::string &name)
+              -> DenseTimeSeries & {
+            return self.get_dense_time_series(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a mutable reference to a DenseTimeSeries by name.")
+      .def("has_dense_time_series", &ThermalData::has_dense_time_series,
+           "name"_a,
+           "Check whether a DenseTimeSeries with the given name exists.")
+      .def("remove_dense_time_series", &ThermalData::remove_dense_time_series,
+           "name"_a, "Remove a DenseTimeSeries by name.")
+
+      // ── Sparse Time Series ──────────────────────────────────────────
+      .def(
+          "add_sparse_time_series",
+          static_cast<SparseTimeSeries &(ThermalData::*)(
+              const std::string &, SparseTimeSeries)>(
+              &ThermalData::add_sparse_time_series),
+          "name"_a, "series"_a, nb::rv_policy::reference_internal,
+          "Add or replace a named SparseTimeSeries.")
+      .def(
+          "add_sparse_time_series",
+          static_cast<SparseTimeSeries &(ThermalData::*)(const std::string &)>(
+              &ThermalData::add_sparse_time_series),
+          "name"_a, nb::rv_policy::reference_internal,
+          "Create and add an empty SparseTimeSeries.")
+      .def(
+          "get_sparse_time_series",
+          [](ThermalData &self, const std::string &name)
+              -> SparseTimeSeries & {
+            return self.get_sparse_time_series(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a mutable reference to a SparseTimeSeries by name.")
+      .def("has_sparse_time_series", &ThermalData::has_sparse_time_series,
+           "name"_a,
+           "Check whether a SparseTimeSeries with the given name exists.")
+      .def("remove_sparse_time_series",
+           &ThermalData::remove_sparse_time_series, "name"_a,
+           "Remove a SparseTimeSeries by name.")
+
+      // ── Lookup Tables ───────────────────────────────────────────────
+      .def("add_lookup_table", &ThermalData::add_lookup_table, "name"_a,
+           "table"_a, nb::rv_policy::reference_internal,
+           "Add or replace a named LookupTable1D.")
+      .def(
+          "get_lookup_table",
+          [](ThermalData &self, const std::string &name) -> LookupTable1D & {
+            return self.get_lookup_table(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a mutable reference to a LookupTable1D by name.")
+      .def("has_lookup_table", &ThermalData::has_lookup_table, "name"_a,
+           "Check whether a LookupTable1D with the given name exists.")
+      .def("remove_lookup_table", &ThermalData::remove_lookup_table, "name"_a,
+           "Remove a LookupTable1D by name.")
+
+      // ── Vector Lookup Tables ────────────────────────────────────────
+      .def("add_lookup_table_vec", &ThermalData::add_lookup_table_vec,
+           "name"_a, "table"_a, nb::rv_policy::reference_internal,
+           "Add or replace a named LookupTableVec1D.")
+      .def(
+          "get_lookup_table_vec",
+          [](ThermalData &self,
+             const std::string &name) -> LookupTableVec1D & {
+            return self.get_lookup_table_vec(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a mutable reference to a LookupTableVec1D by name.")
+      .def("has_lookup_table_vec", &ThermalData::has_lookup_table_vec,
+           "name"_a,
+           "Check whether a LookupTableVec1D with the given name exists.")
+      .def("remove_lookup_table_vec", &ThermalData::remove_lookup_table_vec,
+           "name"_a, "Remove a LookupTableVec1D by name.");
 }
 
 inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::ConductiveCouplings;
   using pycanha::Coupling;
   using pycanha::ESATANReader;
+  using pycanha::ExtrapolationMethod;
   using pycanha::Formulas;
   using pycanha::Index;
+  using pycanha::InterpolationMethod;
   using pycanha::Node;
   using pycanha::Nodes;
   using pycanha::Parameters;
   using pycanha::RadiativeCouplings;
+  using pycanha::TemperatureVariable;
   using pycanha::ThermalData;
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalNetwork;
+  using pycanha::TimeVariable;
 
   nb::class_<ESATANReader>(m, "ESATANReader",
                          "Reader for ESATAN TMD thermal model files.")
@@ -238,6 +320,63 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
           },
           "coupling"_a,
           "Add a radiative coupling from a Coupling object.")
+      // ── Time variables ──────────────────────────────────────────────
+      .def(
+          "add_time_variable",
+          [](ThermalMathematicalModel &self, const std::string &name,
+             Eigen::VectorXd x_data, Eigen::VectorXd y_data,
+             InterpolationMethod interp, ExtrapolationMethod extrap) {
+            self.add_time_variable(name, std::move(x_data), std::move(y_data),
+                                   interp, extrap);
+          },
+          "name"_a, "x_data"_a, "y_data"_a,
+          "interpolation"_a = InterpolationMethod::Linear,
+          "extrapolation"_a = ExtrapolationMethod::Constant,
+          "Add a time-driven variable (parameter updated from a lookup table "
+          "of time).")
+      .def("remove_time_variable",
+           &ThermalMathematicalModel::remove_time_variable, "name"_a,
+           "Remove a time variable by name.")
+      .def("has_time_variable",
+           &ThermalMathematicalModel::has_time_variable, "name"_a,
+           "Check whether a time variable with the given name exists.")
+      .def(
+          "get_time_variable",
+          [](const ThermalMathematicalModel &self,
+             const std::string &name) -> const TimeVariable & {
+            return self.get_time_variable(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a read-only reference to a time variable by name.")
+      // ── Temperature variables ───────────────────────────────────────
+      .def(
+          "add_temperature_variable",
+          [](ThermalMathematicalModel &self, const std::string &name,
+             Eigen::VectorXd x_data, Eigen::VectorXd y_data,
+             InterpolationMethod interp, ExtrapolationMethod extrap) {
+            self.add_temperature_variable(name, std::move(x_data),
+                                          std::move(y_data), interp, extrap);
+          },
+          "name"_a, "x_data"_a, "y_data"_a,
+          "interpolation"_a = InterpolationMethod::Linear,
+          "extrapolation"_a = ExtrapolationMethod::Constant,
+          "Add a temperature-driven variable (evaluated from a lookup table "
+          "of temperature).")
+      .def("remove_temperature_variable",
+           &ThermalMathematicalModel::remove_temperature_variable, "name"_a,
+           "Remove a temperature variable by name.")
+      .def("has_temperature_variable",
+           &ThermalMathematicalModel::has_temperature_variable, "name"_a,
+           "Check whether a temperature variable with the given name exists.")
+      .def(
+          "get_temperature_variable",
+          [](const ThermalMathematicalModel &self,
+             const std::string &name) -> const TemperatureVariable & {
+            return self.get_temperature_variable(name);
+          },
+          nb::rv_policy::reference_internal, "name"_a,
+          "Get a read-only reference to a temperature variable by name.")
+      // ── Callbacks ───────────────────────────────────────────────────
       .def("callback_solver_loop",
            &ThermalMathematicalModel::callback_solver_loop,
            "Execute all registered solver-loop callbacks.")

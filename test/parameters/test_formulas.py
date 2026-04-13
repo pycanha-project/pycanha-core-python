@@ -3,8 +3,7 @@
 import pycanha_core as pcc
 import pytest
 
-AttributeEntity = pcc.parameters.AttributeEntity
-ConductiveCouplingEntity = pcc.parameters.ConductiveCouplingEntity
+Entity = pcc.parameters.Entity
 ExpressionFormula = pcc.parameters.ExpressionFormula
 Formulas = pcc.parameters.Formulas
 Node = pcc.tmm.Node
@@ -37,13 +36,13 @@ def tmm_with_params():
 class TestParameterFormula:
     def test_construction(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         assert formula is not None
 
     def test_compile_and_apply(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         formula.compile_formula()
         formula.apply_formula()
@@ -52,7 +51,7 @@ class TestParameterFormula:
 
     def test_apply_compiled_formula(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         formula.compile_formula()
         formula.apply_compiled_formula()
@@ -60,7 +59,7 @@ class TestParameterFormula:
 
     def test_get_value(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         formula.compile_formula()
         formula.apply_formula()
@@ -68,20 +67,20 @@ class TestParameterFormula:
 
     def test_entity_property(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         assert formula.entity is not None
 
     def test_parameter_dependencies(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         deps = formula.parameter_dependencies
         assert isinstance(deps, list)
 
     def test_parameter_change_propagates(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         formula.compile_formula()
         formula.apply_formula()
@@ -98,13 +97,13 @@ class TestParameterFormula:
 class TestValueFormula:
     def test_construction(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = AttributeEntity(tmm.network, "QI", 1)
+        entity = Entity.qi(tmm.network, 1)
         formula = ValueFormula(entity)
         assert formula is not None
 
     def test_set_and_apply(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = AttributeEntity(tmm.network, "QI", 1)
+        entity = Entity.qi(tmm.network, 1)
         formula = ValueFormula(entity)
         formula.set_value(999.0)
         formula.compile_formula()
@@ -113,7 +112,7 @@ class TestValueFormula:
 
     def test_get_value(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = AttributeEntity(tmm.network, "QI", 1)
+        entity = Entity.qi(tmm.network, 1)
         formula = ValueFormula(entity)
         formula.set_value(123.0)
         formula.compile_formula()
@@ -128,7 +127,7 @@ class TestExpressionFormula:
     def test_apply_formula(self, tmm_with_params):
         tmm = tmm_with_params
         tmm.parameters.add_parameter("offset", 2.0)
-        entity = AttributeEntity(tmm.network, "QI", 1)
+        entity = Entity.qi(tmm.network, 1)
         formula = ExpressionFormula(entity, tmm.parameters, "k + offset")
 
         assert formula.expression == "k + offset"
@@ -142,7 +141,7 @@ class TestExpressionFormula:
     def test_compile_and_calculate_derivatives(self, tmm_with_params):
         tmm = tmm_with_params
         tmm.parameters.add_parameter("offset", 2.0)
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ExpressionFormula(entity, tmm.parameters, "k * offset")
 
         formula.compile_formula()
@@ -162,7 +161,7 @@ class TestFormulas:
     def test_associate_and_add(self, tmm_with_params):
         tmm = tmm_with_params
         formulas = tmm.formulas
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         formulas.add_formula(formula)
 
@@ -170,7 +169,7 @@ class TestFormulas:
 
     def test_apply_formulas(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         tmm.formulas.add_formula(formula)
         tmm.formulas.apply_formulas()
@@ -179,7 +178,7 @@ class TestFormulas:
     def test_parametric_study(self, tmm_with_params):
         """Simulate a parametric study: change parameter, apply, check."""
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         tmm.formulas.add_formula(formula)
 
@@ -192,7 +191,7 @@ class TestFormulas:
 
     def test_parameter_dependencies_property(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         tmm.formulas.add_formula(formula)
         deps = tmm.formulas.parameter_dependencies
@@ -200,7 +199,7 @@ class TestFormulas:
 
     def test_formulas_list_property(self, tmm_with_params):
         tmm = tmm_with_params
-        entity = ConductiveCouplingEntity(tmm.network, 1, 2)
+        entity = Entity.gl(tmm.network, 1, 2)
         formula = ParameterFormula(entity, tmm.parameters, "k")
         tmm.formulas.add_formula(formula)
         flist = tmm.formulas.formulas
@@ -210,7 +209,7 @@ class TestFormulas:
     def test_calculate_derivatives(self, tmm_with_params):
         tmm = tmm_with_params
         tmm.parameters.add_parameter("offset", 2.0)
-        entity = AttributeEntity(tmm.network, "QI", 1)
+        entity = Entity.qi(tmm.network, 1)
         formula = ExpressionFormula(entity, tmm.parameters, "k + offset")
 
         tmm.formulas.add_formula(formula)

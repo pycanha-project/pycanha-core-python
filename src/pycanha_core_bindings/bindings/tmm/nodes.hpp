@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
@@ -17,6 +19,7 @@ namespace nb = nanobind;
 using namespace nanobind::literals; // NOLINT(build/namespaces)
 
 using pycanha::Node;
+using pycanha::NodeNum;
 using pycanha::Nodes;
 using pycanha::NodeType;
 
@@ -36,7 +39,7 @@ inline void Node_b(nb::module_ &m) {
                    "A node stores temperature, thermal capacity, heat loads,\n"
                    "optical properties, area, and position. It can be standalone\n"
                    "or associated with a Nodes container.")
-      .def(nb::init<int>(), "node_num"_a,
+      .def(nb::init<NodeNum>(), "node_num"_a,
            "Create a standalone node with the given user node number.")
       .def(nb::init<const Node &>(), "other"_a, "Copy constructor.")
       .def_prop_rw("node_num", &Node::get_node_num, &Node::set_node_num,
@@ -180,9 +183,9 @@ inline void Nodes_b(nb::module_ &m) {
       .def("set_literal_C", &Nodes::set_literal_C, "node_num"_a, "literal"_a,
            "Set literal (formula) representation of thermal capacity.")
       .def("get_idx_from_node_num", &Nodes::get_idx_from_node_num, "node_num"_a,
-           "Get internal index from user node number.")
+           "Get internal index from user node number, or None if not found.")
       .def("get_node_num_from_idx", &Nodes::get_node_num_from_idx, "idx"_a,
-           "Get user node number from internal index.")
+           "Get user node number from internal index, or None if invalid.")
       .def("get_node_from_node_num", &Nodes::get_node_from_node_num,
            nb::rv_policy::move, "node_num"_a,
            "Get a Node object by user node number.")
