@@ -22,6 +22,28 @@ using namespace nanobind::literals; // NOLINT(build/namespaces)
 
 namespace pycanha::bindings::solvers {
 
+// Helper to access protected TransientSolver members via pointer-to-member.
+// TransientSolverView inherits from TransientSolver and thus can name the
+// protected members; the resulting pointer-to-member has base-class type
+// and can be applied to any TransientSolver reference — fully well-defined.
+struct TransientSolverView : pycanha::TransientSolver {
+  TransientSolverView() = delete;
+
+  static auto get_output_table_name(const pycanha::TransientSolver &s)
+      -> const std::string & {
+    constexpr auto ptr = &TransientSolverView::output_table_name;
+    return s.*ptr;
+  }
+  static auto get_time(const pycanha::TransientSolver &s) -> double {
+    constexpr auto ptr = &TransientSolverView::time;
+    return s.*ptr;
+  }
+  static auto get_time_iter(const pycanha::TransientSolver &s) -> int {
+    constexpr auto ptr = &TransientSolverView::time_iter;
+    return s.*ptr;
+  }
+};
+
 inline void register_solvers(nb::module_ &m) {
   using pycanha::Solver;
   using pycanha::SSLU;
@@ -74,7 +96,26 @@ inline void register_solvers(nb::module_ &m) {
                                       "Base class for transient (time-dependent) solvers.")
       .def("set_simulation_time", &TransientSolver::set_simulation_time,
            "start_time"_a, "end_time"_a, "dtime"_a, "output_stride"_a,
-           "Configure the transient simulation time window and output interval.");
+           "Configure the transient simulation time window and output interval.")
+      .def_prop_ro(
+          "output_table_name",
+          [](const TransientSolver &self) -> const std::string & {
+            return TransientSolverView::get_output_table_name(self);
+          },
+          nb::rv_policy::reference_internal,
+          "Name of the DenseTimeSeries table where output is stored.")
+      .def_prop_ro(
+          "time",
+          [](const TransientSolver &self) {
+            return TransientSolverView::get_time(self);
+          },
+          "Current simulation time [s].")
+      .def_prop_ro(
+          "time_iter",
+          [](const TransientSolver &self) {
+            return TransientSolverView::get_time_iter(self);
+          },
+          "Current time iteration index.");
 
   nb::class_<TSCN, TransientSolver>(
       m, "TSCN",

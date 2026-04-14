@@ -13,6 +13,18 @@ Enumerations
    :members:
    :undoc-members:
 
+.. autoclass:: InterpolationMethod
+   :members:
+   :undoc-members:
+
+.. autoclass:: ExtrapolationMethod
+   :members:
+   :undoc-members:
+
+.. autoclass:: TMDNodeAttribute
+   :members:
+   :undoc-members:
+
 Nodes
 -----
 
@@ -54,6 +66,38 @@ Couplings
    :special-members: __init__
    :exclude-members: __dict__, __weakref__, __module__
 
+Thermal data
+------------
+
+.. autoclass:: LookupTable1D
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: LookupTableVec1D
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: DenseTimeSeries
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: SparseTimeSeries
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: TimeVariable
+   :members:
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: TemperatureVariable
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
 Network and model
 -----------------
 
@@ -76,3 +120,8 @@ Network and model
    :members:
    :special-members: __init__
    :exclude-members: __dict__, __weakref__, __module__
+
+Helpers
+-------
+
+.. autofunction:: read_tmd_transient

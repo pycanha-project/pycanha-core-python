@@ -47,10 +47,11 @@ class TestTSCNRLDS:
         solver.solve()
         solver.deinitialize()
 
-        assert basic_tmm.thermal_data.has_table("TSCNRLDS_OUTPUT") is True
-        results = basic_tmm.thermal_data.get_table("TSCNRLDS_OUTPUT")
-        assert results.shape[0] == 11  # 0, 10k, 20k, ..., 100k
-        assert results.shape[1] == 6  # time + 5 nodes
+        table_name = solver.output_table_name
+        assert basic_tmm.thermal_data.has_dense_time_series(table_name) is True
+        series = basic_tmm.thermal_data.get_dense_time_series(table_name)
+        assert series.num_timesteps == 11  # 0, 10k, 20k, ..., 100k
+        assert series.num_columns == 5  # 5 nodes (times stored separately)
 
     def test_solve_temperatures(self, basic_tmm):
         solver = pcc.solvers.TSCNRLDS(basic_tmm)
@@ -62,9 +63,10 @@ class TestTSCNRLDS:
         solver.solve()
         solver.deinitialize()
 
-        results = basic_tmm.thermal_data.get_table("TSCNRLDS_OUTPUT")
-        calculated_times = results[:, 0]
-        calculated_temps = results[:, 1:]
+        table_name = solver.output_table_name
+        series = basic_tmm.thermal_data.get_dense_time_series(table_name)
+        calculated_times = series.times
+        calculated_temps = series.values
 
         expected_times = np.array([
             0.0, 10000.0, 20000.0, 30000.0, 40000.0,

@@ -18,6 +18,7 @@
 #include "bindings/gmm/trimesh.hpp"
 #include "bindings/parameters/parameters.hpp"
 #include "bindings/solvers/solvers.hpp"
+#include "bindings/thermaldata/thermaldata.hpp"
 #include "bindings/tmm/couplings.hpp"
 #include "bindings/tmm/nodes.hpp"
 #include "bindings/tmm/thermalmathematicalmodel.hpp"
@@ -33,6 +34,7 @@ using namespace pycanha;
 using namespace gmm;
 using namespace pycanha::bindings::parameters;
 using namespace pycanha::bindings::solvers;
+using namespace pycanha::bindings::thermaldata;
 using namespace pycanha::bindings::tmm;
 using namespace pycanha::bindings::utils;
 
@@ -74,13 +76,17 @@ NB_MODULE(pycanha_core, m) {
   register_couplings(tmm_submodule);
   register_thermalnetwork(tmm_submodule);
 
+  // Register thermaldata types (enums, series, lookup tables, variables)
+  // before ThermalData which uses them.
+  register_thermaldata_types(tmm_submodule);
+  register_thermal_data(tmm_submodule);
+
   nb::module_ parameters_submodule =
       m.def_submodule("parameters", "Thermal parameters and formulas");
   register_parameters(parameters_submodule);
   register_entities(parameters_submodule);
   register_formulas(parameters_submodule);
 
-  register_thermal_data(tmm_submodule);
   register_thermal_mathematical_model(tmm_submodule);
 
   nb::module_ solvers_submodule = m.def_submodule("solvers", "Thermal solvers");
@@ -89,6 +95,15 @@ NB_MODULE(pycanha_core, m) {
   // Re-export commonly used enums at the package root for convenience.
   if (nb::hasattr(tmm_submodule, "NodeType")) {
     m.attr("NodeType") = tmm_submodule.attr("NodeType");
+  }
+  if (nb::hasattr(parameters_submodule, "EntityType")) {
+    m.attr("EntityType") = parameters_submodule.attr("EntityType");
+  }
+  if (nb::hasattr(tmm_submodule, "InterpolationMethod")) {
+    m.attr("InterpolationMethod") = tmm_submodule.attr("InterpolationMethod");
+  }
+  if (nb::hasattr(tmm_submodule, "ExtrapolationMethod")) {
+    m.attr("ExtrapolationMethod") = tmm_submodule.attr("ExtrapolationMethod");
   }
 
   m.def("print_package_info", &print_package_info,
