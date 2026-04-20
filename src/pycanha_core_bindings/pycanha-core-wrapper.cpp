@@ -105,6 +105,9 @@ NB_MODULE(pycanha_core, m) {
   if (nb::hasattr(tmm_submodule, "ExtrapolationMethod")) {
     m.attr("ExtrapolationMethod") = tmm_submodule.attr("ExtrapolationMethod");
   }
+  if (nb::hasattr(tmm_submodule, "DataModelAttribute")) {
+    m.attr("DataModelAttribute") = tmm_submodule.attr("DataModelAttribute");
+  }
 
   m.def("print_package_info", &print_package_info,
         "Print build and dependency information.");

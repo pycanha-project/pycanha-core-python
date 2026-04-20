@@ -23,6 +23,11 @@ def test_nodetype_reexported():
     assert pcc.NodeType is pcc.tmm.NodeType
 
 
+def test_data_model_attribute_reexported():
+    assert hasattr(pcc, "DataModelAttribute")
+    assert pcc.DataModelAttribute is pcc.tmm.DataModelAttribute
+
+
 def test_print_package_info():
     # TODO: print_package_info() writes to C++ stdout, not capturable by Python
     # Change to logging system in the C++ side
