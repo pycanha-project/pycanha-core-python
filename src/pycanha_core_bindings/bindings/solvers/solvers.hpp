@@ -29,11 +29,16 @@ namespace pycanha::bindings::solvers {
 struct TransientSolverView : pycanha::TransientSolver {
   TransientSolverView() = delete;
 
-  static auto get_output_table_name(const pycanha::TransientSolver &s)
+     static auto get_output_model_name(const pycanha::TransientSolver &s)
       -> const std::string & {
-    constexpr auto ptr = &TransientSolverView::output_table_name;
+          constexpr auto ptr = &TransientSolverView::output_model_name;
     return s.*ptr;
   }
+     static auto get_output_config(pycanha::TransientSolver &s)
+               -> pycanha::SolverOutputConfig & {
+          constexpr auto ptr = &TransientSolverView::output_config;
+          return s.*ptr;
+     }
   static auto get_time(const pycanha::TransientSolver &s) -> double {
     constexpr auto ptr = &TransientSolverView::time;
     return s.*ptr;
@@ -45,6 +50,7 @@ struct TransientSolverView : pycanha::TransientSolver {
 };
 
 inline void register_solvers(nb::module_ &m) {
+     using pycanha::SolverOutputConfig;
   using pycanha::Solver;
   using pycanha::SSLU;
   using pycanha::SteadyStateSolver;
@@ -54,6 +60,28 @@ inline void register_solvers(nb::module_ &m) {
   using pycanha::TSCNRL;
   using pycanha::TSCNRLDS;
   using pycanha::TSCNRLDS_JACOBIAN;
+
+  nb::class_<SolverOutputConfig>(
+      m, "SolverOutputConfig",
+      "Controls which transient solver attributes are written to the output model.")
+      .def(nb::init<>(), "Create a default output configuration.")
+      .def("output_all_dense", &SolverOutputConfig::output_all_dense,
+           "Enable all dense node attributes.")
+      .def("output_all", &SolverOutputConfig::output_all,
+           "Enable all dense, sparse, and matrix output attributes.")
+      .def("add", &SolverOutputConfig::add, "attr"_a,
+           "Enable an output attribute.")
+      .def("remove", &SolverOutputConfig::remove, "attr"_a,
+           "Disable an output attribute.")
+      .def("has", &SolverOutputConfig::has, "attr"_a,
+           "Return whether the attribute is enabled.")
+      .def_prop_ro(
+          "attributes",
+          [](const SolverOutputConfig &self) {
+            return std::vector<pycanha::DataModelAttribute>(
+                self.attributes.begin(), self.attributes.end());
+          },
+          "List of enabled output attributes.");
 
   nb::class_<Solver>(m, "Solver",
                     "Abstract base class for thermal solvers.\n\n"
@@ -98,12 +126,19 @@ inline void register_solvers(nb::module_ &m) {
            "start_time"_a, "end_time"_a, "dtime"_a, "output_stride"_a,
            "Configure the transient simulation time window and output interval.")
       .def_prop_ro(
-          "output_table_name",
+                         "output_model_name",
           [](const TransientSolver &self) -> const std::string & {
-            return TransientSolverView::get_output_table_name(self);
+                              return TransientSolverView::get_output_model_name(self);
           },
           nb::rv_policy::reference_internal,
-          "Name of the DenseTimeSeries table where output is stored.")
+                         "Name of the DataModel where output is stored.")
+               .def_prop_ro(
+                         "output_config",
+                         [](TransientSolver &self) -> SolverOutputConfig & {
+                              return TransientSolverView::get_output_config(self);
+                         },
+                         nb::rv_policy::reference_internal,
+                         "Reference to the output configuration.")
       .def_prop_ro(
           "time",
           [](const TransientSolver &self) {
@@ -169,10 +204,7 @@ inline void register_solvers(nb::module_ &m) {
       .def_prop_ro(
           "parameter_names",
           [](const TSCNRLDS_JACOBIAN &self) { return self.parameter_names(); },
-          "List of parameter names for which sensitivities are computed.")
-      .def_rw("output_jacobian_table_name",
-              &TSCNRLDS_JACOBIAN::output_jacobian_table_name,
-              "Name of the ThermalData table where Jacobian results are stored.");
+            "List of parameter names for which sensitivities are computed.");
 }
 
 } // namespace pycanha::bindings::solvers

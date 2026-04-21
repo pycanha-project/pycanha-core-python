@@ -3,6 +3,8 @@
 import numpy as np
 import pycanha_core as pcc
 
+DataModelAttribute = pcc.DataModelAttribute
+
 
 def make_jacobian_example_model():
     model = pcc.tmm.ThermalMathematicalModel("jacobian_python_example")
@@ -59,23 +61,22 @@ class TestTSCNRLDSJacobian:
         solver.initialize()
         solver.solve()
 
-        output_name = solver.output_table_name
-        jacobian_name = solver.output_jacobian_table_name
-        assert model.thermal_data.has_dense_time_series(output_name) is True
-        assert model.thermal_data.has_dense_time_series(jacobian_name) is True
+        output_name = solver.output_model_name
+        assert model.thermal_data.models.has_model(output_name) is True
         assert solver.parameter_names == ["k", "C"]
 
-        temp_series = model.thermal_data.get_dense_time_series(output_name)
-        jac_series = model.thermal_data.get_dense_time_series(jacobian_name)
+        output_model = model.thermal_data.models.get_model(output_name)
+        temp_series = output_model.get_dense_attribute(DataModelAttribute.T)
+        jac_series = output_model.get_matrix_attribute(DataModelAttribute.JAC)
 
         temp_times = temp_series.times
         temp_values = temp_series.values
         jac_times = jac_series.times
-        jac_values = jac_series.values
 
         assert temp_values.shape[1] == 2  # 2 nodes (times stored separately)
-        assert jac_values.shape[1] == 2   # 2 parameters
-        assert jac_values.shape[0] >= 2
+        assert jac_series.cols == 2  # 2 parameters
+        assert jac_series.rows == 1  # 1 diffusive node
+        assert jac_series.num_timesteps >= 2
 
         expected_temperature_samples = [
             (0.0, [0.0, 1.0]),
@@ -98,12 +99,9 @@ class TestTSCNRLDSJacobian:
             expected_temperature_samples, expected_jacobian_samples, strict=True
         ):
             row = find_time_row(temp_times, temp_values, t)
-            np.testing.assert_allclose(
-                temp_values[row], exp_temp, atol=5e-6
-            )
-            np.testing.assert_allclose(
-                jac_values[row], exp_jac, atol=5e-6
-            )
+            jac_row = find_time_row(jac_times, np.zeros((jac_times.size, 1)), t)
+            np.testing.assert_allclose(temp_values[row], exp_temp, atol=5e-6)
+            np.testing.assert_allclose(jac_series.at(jac_row)[0], exp_jac, atol=5e-6)
 
         solver.deinitialize()
         assert solver.solver_initialized is False

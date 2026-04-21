@@ -1,11 +1,14 @@
 """Test bindings for ThermalData."""
 
 import numpy as np
+import pycanha_core as pcc
 import pytest
 
-import pycanha_core as pcc
-
+DataModel = pcc.tmm.DataModel
+DataModelAttribute = pcc.DataModelAttribute
 DenseTimeSeries = pcc.tmm.DenseTimeSeries
+DenseMatrixTimeSeries = pcc.tmm.DenseMatrixTimeSeries
+LookupTableVec1D = pcc.tmm.LookupTableVec1D
 Node = pcc.tmm.Node
 ThermalData = pcc.tmm.ThermalData
 ThermalNetwork = pcc.tmm.ThermalNetwork
@@ -27,50 +30,79 @@ class TestThermalData:
     def test_construction_with_network(self, td_with_network):
         assert td_with_network is not None
 
-    def test_add_and_get_dense_time_series(self, td_with_network):
+    def test_add_and_get_lookup_table(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("test", 5, 3)
-        assert td.has_dense_time_series("test") is True
-        series = td.get_dense_time_series("test")
-        assert series.num_timesteps == 5
-        assert series.num_columns == 3
+        table = LookupTableVec1D(
+            np.array([0.0, 1.0]),
+            np.array([[10.0, 20.0], [30.0, 40.0]]),
+        )
+        td.tables.add_table("test", table)
 
-    def test_has_dense_time_series_false(self, td_with_network):
-        assert td_with_network.has_dense_time_series("nonexistent") is False
+        assert td.tables.has_table("test") is True
+        stored = td.tables.get_table("test")
+        assert stored.size == 2
+        assert stored.num_values == 2
 
-    def test_remove_dense_time_series(self, td_with_network):
+    def test_has_lookup_table_false(self, td_with_network):
+        assert td_with_network.tables.has_table("nonexistent") is False
+
+    def test_remove_lookup_table(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("to_remove", 2, 2)
-        assert td.has_dense_time_series("to_remove") is True
-        td.remove_dense_time_series("to_remove")
-        assert td.has_dense_time_series("to_remove") is False
+        table = LookupTableVec1D(
+            np.array([0.0, 1.0]),
+            np.array([[1.0], [2.0]]),
+        )
+        td.tables.add_table("to_remove", table)
+        assert td.tables.has_table("to_remove") is True
+        td.tables.remove_table("to_remove")
+        assert td.tables.has_table("to_remove") is False
 
-    def test_dense_time_series_reset(self, td_with_network):
+    def test_add_and_get_data_model(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("resettable", 3, 3)
-        series = td.get_dense_time_series("resettable")
-        series.values[0, 0] = 999.0
-        series.reset()
-        # After reset, re-add with same dimensions
-        td.add_dense_time_series("resettable", 3, 3)
-        series2 = td.get_dense_time_series("resettable")
-        assert series2.values[0, 0] == pytest.approx(0.0)
+        td.models.add_model("transient", DataModel([1, 2]))
 
-    def test_dense_time_series_is_writable(self, td_with_network):
+        assert td.models.has_model("transient") is True
+        model = td.models.get_model("transient")
+        assert model.node_numbers == [1, 2]
+
+    def test_remove_data_model(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("writable", 2, 2)
-        series = td.get_dense_time_series("writable")
-        series.values[0, 0] = 42.0
-        series.values[1, 1] = 99.0
-        # Re-fetch to confirm write went through
-        series2 = td.get_dense_time_series("writable")
-        assert series2.values[0, 0] == pytest.approx(42.0)
-        assert series2.values[1, 1] == pytest.approx(99.0)
+        td.models.add_model("to_remove", DataModel([1, 2]))
+        assert td.models.has_model("to_remove") is True
+        td.models.remove_model("to_remove")
+        assert td.models.has_model("to_remove") is False
+
+    def test_dense_attribute_is_writable(self, td_with_network):
+        td = td_with_network
+        model = td.models.add_model("writable", DataModel([1, 2]))
+        model.T.resize(2, 2)
+        model.T.values[0, 0] = 42.0
+        model.T.values[1, 1] = 99.0
+
+        series = td.models.get_model("writable").get_dense_attribute(
+            DataModelAttribute.T
+        )
+        assert series.values[0, 0] == pytest.approx(42.0)
+        assert series.values[1, 1] == pytest.approx(99.0)
+
+    def test_dense_matrix_time_series(self):
+        series = DenseMatrixTimeSeries(2, 2)
+        series.push_back(0.0, np.array([[1.0, 2.0], [3.0, 4.0]]))
+        series.push_back(1.0, np.array([[5.0, 6.0], [7.0, 8.0]]))
+
+        assert series.num_timesteps == 2
+        assert series.rows == 2
+        assert series.cols == 2
+        np.testing.assert_allclose(series.times, [0.0, 1.0])
+        np.testing.assert_allclose(series.at(1), [[5.0, 6.0], [7.0, 8.0]])
 
     def test_size(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("a", 1, 1)
-        td.add_dense_time_series("b", 1, 1)
+        td.tables.add_table(
+            "table",
+            LookupTableVec1D(np.array([0.0]), np.array([[1.0, 2.0]])),
+        )
+        td.models.add_model("model", DataModel([1, 2]))
         assert td.size == 2
 
     def test_network_property(self, td_with_network):
@@ -86,8 +118,9 @@ class TestThermalData:
 
     def test_dense_time_series_times_and_values(self, td_with_network):
         td = td_with_network
-        td.add_dense_time_series("ts", 3, 2)
-        series = td.get_dense_time_series("ts")
+        model = td.models.add_model("ts", DataModel([1, 2]))
+        series = model.get_dense_attribute(DataModelAttribute.T)
+        series.resize(3, 2)
         series.times[0] = 0.0
         series.times[1] = 1.0
         series.times[2] = 2.0

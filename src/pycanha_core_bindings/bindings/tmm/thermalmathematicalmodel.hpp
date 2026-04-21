@@ -30,18 +30,14 @@ using namespace nanobind::literals; // NOLINT(build/namespaces)
 namespace pycanha::bindings::tmm {
 
 inline void register_thermal_data(nb::module_ &m) {
-  using pycanha::DenseTimeSeries;
-  using pycanha::Index;
-  using pycanha::LookupTable1D;
-  using pycanha::LookupTableVec1D;
-  using pycanha::SparseTimeSeries;
+  using pycanha::DataModelStore;
+  using pycanha::DataTableStore;
   using pycanha::ThermalData;
   using pycanha::ThermalNetwork;
 
   nb::class_<ThermalData>(
       m, "ThermalData",
-      "Storage for simulation data: dense/sparse time series and\n"
-      "lookup tables, each identified by a string name.")
+      "Storage for simulation data models and auxiliary lookup tables.")
       .def(nb::init<>(), "Create an empty ThermalData store.")
       .def(nb::init<std::shared_ptr<ThermalNetwork>>(), "network"_a,
            "Create a ThermalData store associated with a network.")
@@ -56,99 +52,16 @@ inline void register_thermal_data(nb::module_ &m) {
           "Reference to the associated ThermalNetwork.")
       .def_prop_ro("size", &ThermalData::size,
                    "Total number of stored data objects.")
-
-      // ── Dense Time Series ───────────────────────────────────────────
-      .def(
-          "add_dense_time_series",
-          static_cast<DenseTimeSeries &(ThermalData::*)(
-              const std::string &, DenseTimeSeries)>(
-              &ThermalData::add_dense_time_series),
-          "name"_a, "series"_a, nb::rv_policy::reference_internal,
-          "Add or replace a named DenseTimeSeries.")
-      .def(
-          "add_dense_time_series",
-          static_cast<DenseTimeSeries &(ThermalData::*)(const std::string &,
-                                                         Index, Index)>(
-              &ThermalData::add_dense_time_series),
-          "name"_a, "num_timesteps"_a, "num_columns"_a,
-          nb::rv_policy::reference_internal,
-          "Create and add a DenseTimeSeries with the given dimensions.")
-      .def(
-          "get_dense_time_series",
-          [](ThermalData &self, const std::string &name)
-              -> DenseTimeSeries & {
-            return self.get_dense_time_series(name);
-          },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a mutable reference to a DenseTimeSeries by name.")
-      .def("has_dense_time_series", &ThermalData::has_dense_time_series,
-           "name"_a,
-           "Check whether a DenseTimeSeries with the given name exists.")
-      .def("remove_dense_time_series", &ThermalData::remove_dense_time_series,
-           "name"_a, "Remove a DenseTimeSeries by name.")
-
-      // ── Sparse Time Series ──────────────────────────────────────────
-      .def(
-          "add_sparse_time_series",
-          static_cast<SparseTimeSeries &(ThermalData::*)(
-              const std::string &, SparseTimeSeries)>(
-              &ThermalData::add_sparse_time_series),
-          "name"_a, "series"_a, nb::rv_policy::reference_internal,
-          "Add or replace a named SparseTimeSeries.")
-      .def(
-          "add_sparse_time_series",
-          static_cast<SparseTimeSeries &(ThermalData::*)(const std::string &)>(
-              &ThermalData::add_sparse_time_series),
-          "name"_a, nb::rv_policy::reference_internal,
-          "Create and add an empty SparseTimeSeries.")
-      .def(
-          "get_sparse_time_series",
-          [](ThermalData &self, const std::string &name)
-              -> SparseTimeSeries & {
-            return self.get_sparse_time_series(name);
-          },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a mutable reference to a SparseTimeSeries by name.")
-      .def("has_sparse_time_series", &ThermalData::has_sparse_time_series,
-           "name"_a,
-           "Check whether a SparseTimeSeries with the given name exists.")
-      .def("remove_sparse_time_series",
-           &ThermalData::remove_sparse_time_series, "name"_a,
-           "Remove a SparseTimeSeries by name.")
-
-      // ── Lookup Tables ───────────────────────────────────────────────
-      .def("add_lookup_table", &ThermalData::add_lookup_table, "name"_a,
-           "table"_a, nb::rv_policy::reference_internal,
-           "Add or replace a named LookupTable1D.")
-      .def(
-          "get_lookup_table",
-          [](ThermalData &self, const std::string &name) -> LookupTable1D & {
-            return self.get_lookup_table(name);
-          },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a mutable reference to a LookupTable1D by name.")
-      .def("has_lookup_table", &ThermalData::has_lookup_table, "name"_a,
-           "Check whether a LookupTable1D with the given name exists.")
-      .def("remove_lookup_table", &ThermalData::remove_lookup_table, "name"_a,
-           "Remove a LookupTable1D by name.")
-
-      // ── Vector Lookup Tables ────────────────────────────────────────
-      .def("add_lookup_table_vec", &ThermalData::add_lookup_table_vec,
-           "name"_a, "table"_a, nb::rv_policy::reference_internal,
-           "Add or replace a named LookupTableVec1D.")
-      .def(
-          "get_lookup_table_vec",
-          [](ThermalData &self,
-             const std::string &name) -> LookupTableVec1D & {
-            return self.get_lookup_table_vec(name);
-          },
-          nb::rv_policy::reference_internal, "name"_a,
-          "Get a mutable reference to a LookupTableVec1D by name.")
-      .def("has_lookup_table_vec", &ThermalData::has_lookup_table_vec,
-           "name"_a,
-           "Check whether a LookupTableVec1D with the given name exists.")
-      .def("remove_lookup_table_vec", &ThermalData::remove_lookup_table_vec,
-           "name"_a, "Remove a LookupTableVec1D by name.");
+          .def_prop_ro(
+            "tables",
+            [](ThermalData &self) -> DataTableStore & { return self.tables(); },
+            nb::rv_policy::reference_internal,
+            "Reference to the lookup-table store.")
+          .def_prop_ro(
+            "models",
+            [](ThermalData &self) -> DataModelStore & { return self.models(); },
+            nb::rv_policy::reference_internal,
+            "Reference to the transient output model store.");
 }
 
 inline void register_thermal_mathematical_model(nb::module_ &m) {
