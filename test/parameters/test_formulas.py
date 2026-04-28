@@ -223,3 +223,41 @@ class TestFormulas:
         assert set(deps) == {"k", "offset"}
         assert len(deps["k"]) == 1
         assert len(deps["offset"]) == 1
+
+    def test_string_target_formula_overloads(self, tmm_with_params):
+        tmm = tmm_with_params
+        tmm.parameters.add_parameter("offset", 2.0)
+
+        param_formula = tmm.formulas.add_parameter_formula("GL(1,2)", "k")
+        expr_formula = tmm.formulas.add_expression_formula("QI1", "k + offset")
+        value_formula = tmm.formulas.add_value_formula("T2", 210.0)
+
+        assert param_formula.expression == "k"
+        assert expr_formula.expression == "k + offset"
+        assert value_formula.get_value() == pytest.approx(210.0)
+
+        tmm.formulas.apply_formulas()
+
+        assert tmm.conductive_couplings.get_coupling_value(1, 2) == pytest.approx(25.0)
+        assert tmm.nodes.get_qi(1) == pytest.approx(27.0)
+        assert tmm.nodes.get_T(2) == pytest.approx(210.0)
+
+    def test_derivative_parameter_registry_and_remove_by_string(self, tmm_with_params):
+        tmm = tmm_with_params
+        tmm.parameters.add_parameter("offset", 2.0)
+        registry = tmm.formulas.parameters_with_derivatives
+
+        registry.add_parameter("k")
+        registry.add_parameter("offset")
+
+        assert registry.contains("k") is True
+        assert registry.parameter_names == ["k", "offset"]
+
+        registry.remove_parameter("k")
+
+        assert registry.contains("k") is False
+        assert registry.parameter_names == ["offset"]
+
+        tmm.formulas.add_value_formula("QI1", 123.0)
+        assert tmm.formulas.remove_formula("QI1") is True
+        assert tmm.formulas.remove_formula("QI1") is False

@@ -12,6 +12,7 @@
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/string_view.h>
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
 
@@ -252,6 +253,7 @@ inline void register_entities(nb::module_ &m) {
 }
 
 inline void register_formulas(nb::module_ &m) {
+  using pycanha::DerivativeParameterRegistry;
   using pycanha::Entity;
   using pycanha::ExpressionFormula;
   using pycanha::Formula;
@@ -260,6 +262,27 @@ inline void register_formulas(nb::module_ &m) {
   using pycanha::Parameters;
   using pycanha::ThermalNetwork;
   using pycanha::ValueFormula;
+
+  nb::class_<DerivativeParameterRegistry>(
+      m, "DerivativeParameterRegistry",
+      "Ordered registry of parameters used for derivative and Jacobian output.")
+      .def(nb::init<>(), "Create an empty derivative-parameter registry.")
+      .def(nb::init<std::shared_ptr<Parameters>>(), "parameters"_a,
+           "Create a derivative-parameter registry associated with a "
+           "Parameters store.")
+      .def("associate", &DerivativeParameterRegistry::associate, "parameters"_a,
+           "Associate this registry with a Parameters store.")
+      .def("add_parameter", &DerivativeParameterRegistry::add_parameter,
+           "parameter_name"_a,
+           "Append a parameter to the ordered derivative subset.")
+      .def("remove_parameter", &DerivativeParameterRegistry::remove_parameter,
+           "parameter_name"_a, "Remove a parameter from the derivative subset.")
+      .def("contains", &DerivativeParameterRegistry::contains,
+           "parameter_name"_a,
+           "Return whether the parameter is in the derivative subset.")
+      .def_prop_ro("parameter_names",
+                   &DerivativeParameterRegistry::parameter_names,
+                   "Ordered derivative-parameter names.");
 
   nb::class_<Formula>(m, "Formula",
                       "Abstract base class for formulas that bind parameter\n"
@@ -309,7 +332,9 @@ inline void register_formulas(nb::module_ &m) {
            "Get the current parameter value.")
       .def("get_derivative_values",
            &derivative_values_to_object<ParameterFormula>,
-           "Get derivative values for sensitivity analysis, or None.");
+           "Get derivative values for sensitivity analysis, or None.")
+      .def_prop_ro("expression", &ParameterFormula::expression,
+                   "Original parameter expression string.");
 
   nb::class_<ValueFormula, Formula>(
       m, "ValueFormula",
@@ -382,6 +407,62 @@ inline void register_formulas(nb::module_ &m) {
            "formula_string"_a,
            "Create a formula by auto-detecting its type from the string.\n\n"
            "Returns a shared pointer to the created Formula.")
+      .def("add_value_formula",
+           static_cast<ValueFormula &(Formulas::*)(Entity, double)>(
+               &Formulas::add_value_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "value"_a,
+           "Add a ValueFormula bound to an Entity target.")
+      .def("add_value_formula",
+           static_cast<ValueFormula &(Formulas::*)(std::string_view, double)>(
+               &Formulas::add_value_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "value"_a,
+           "Add a ValueFormula bound to an entity string target.")
+      .def("add_parameter_formula",
+           static_cast<ParameterFormula &(Formulas::*)(Entity,
+                                                       const std::string &)>(
+               &Formulas::add_parameter_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "expression"_a,
+           "Add a ParameterFormula bound to an Entity target.")
+      .def("add_parameter_formula",
+           static_cast<ParameterFormula &(Formulas::*)(std::string_view,
+                                                       const std::string &)>(
+               &Formulas::add_parameter_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "expression"_a,
+           "Add a ParameterFormula bound to an entity string target.")
+      .def("add_expression_formula",
+           static_cast<ExpressionFormula &(Formulas::*)(Entity,
+                                                        const std::string &)>(
+               &Formulas::add_expression_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "expression"_a,
+           "Add an ExpressionFormula bound to an Entity target.")
+      .def("add_expression_formula",
+           static_cast<ExpressionFormula &(Formulas::*)(std::string_view,
+                                                        const std::string &)>(
+               &Formulas::add_expression_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "expression"_a,
+           "Add an ExpressionFormula bound to an entity string target.")
+      .def("add_formula",
+           static_cast<Formula &(Formulas::*)(Entity, double)>(
+               &Formulas::add_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "value"_a,
+           "Add a formula for an Entity target from a numeric value.")
+      .def("add_formula",
+           static_cast<Formula &(Formulas::*)(std::string_view, double)>(
+               &Formulas::add_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "value"_a,
+           "Add a formula for an entity string target from a numeric value.")
+      .def("add_formula",
+           static_cast<Formula &(Formulas::*)(Entity, const std::string &)>(
+               &Formulas::add_formula),
+           nb::rv_policy::reference_internal, "entity"_a, "formula_string"_a,
+           "Add a formula for an Entity target from a string expression.")
+      .def(
+          "add_formula",
+          static_cast<Formula &(Formulas::*)(std::string_view,
+                                             const std::string &)>(
+              &Formulas::add_formula),
+          nb::rv_policy::reference_internal, "entity"_a, "formula_string"_a,
+          "Add a formula for an entity string target from a string expression.")
       .def("add_formula",
            static_cast<void (Formulas::*)(const Formula &)>(
                &Formulas::add_formula),
@@ -390,6 +471,14 @@ inline void register_formulas(nb::module_ &m) {
            static_cast<void (Formulas::*)(const std::shared_ptr<Formula> &)>(
                &Formulas::add_formula),
            "formula"_a, "Add a formula (by shared pointer) to the collection.")
+      .def("remove_formula",
+           static_cast<bool (Formulas::*)(const Entity &) noexcept>(
+               &Formulas::remove_formula),
+           "entity"_a, "Remove a formula by Entity target.")
+      .def("remove_formula",
+           static_cast<bool (Formulas::*)(std::string_view) noexcept>(
+               &Formulas::remove_formula),
+           "entity"_a, "Remove a formula by entity string target.")
       .def("validate_for_execution", &Formulas::validate_for_execution,
            "Validate all formulas can be evaluated.")
       .def("compile_formulas", &Formulas::compile_formulas,
@@ -412,6 +501,13 @@ inline void register_formulas(nb::module_ &m) {
            "Check whether the compiled state is up to date.")
       .def_rw("debug_formulas", &Formulas::debug_formulas,
               "Enable debug logging of formula application.")
+      .def_prop_ro(
+          "parameters_with_derivatives",
+          [](Formulas &self) -> DerivativeParameterRegistry & {
+            return self.parameters_with_derivatives();
+          },
+          nb::rv_policy::reference_internal,
+          "Ordered registry of derivative-parameter names.")
       .def_prop_ro(
           "formulas",
           [](const Formulas &self) {
