@@ -19,14 +19,14 @@ class TestTSCNRLDS:
 
     def test_solver_properties_settable(self, basic_tmm):
         solver = pcc.solvers.TSCNRLDS(basic_tmm)
-        solver.MAX_ITERS = 50
+        solver.max_iters = 50
         solver.abstol_temp = 1e-7
-        assert solver.MAX_ITERS == 50
+        assert solver.max_iters == 50
         assert solver.abstol_temp == pytest.approx(1e-7)
 
     def test_full_solve_lifecycle(self, basic_tmm):
         solver = pcc.solvers.TSCNRLDS(basic_tmm)
-        solver.MAX_ITERS = 100
+        solver.max_iters = 100
         solver.abstol_temp = 1e-6
         solver.set_simulation_time(0.0, 100000.0, 1000.0, 10000.0)
 
@@ -40,7 +40,7 @@ class TestTSCNRLDS:
 
     def test_solve_output_model(self, basic_tmm):
         solver = pcc.solvers.TSCNRLDS(basic_tmm)
-        solver.MAX_ITERS = 100
+        solver.max_iters = 100
         solver.abstol_temp = 1e-6
         solver.set_simulation_time(0.0, 100000.0, 1000.0, 10000.0)
 
@@ -50,14 +50,14 @@ class TestTSCNRLDS:
 
         model_name = solver.output_model_name
         assert basic_tmm.thermal_data.models.has_model(model_name) is True
-        output_model = basic_tmm.thermal_data.models.get_model(model_name)
+        output_model = solver.output_model
         series = output_model.get_dense_attribute(DataModelAttribute.T)
         assert series.num_timesteps == 11  # 0, 10k, 20k, ..., 100k
         assert series.num_columns == 5  # 5 nodes (times stored separately)
 
     def test_solve_temperatures(self, basic_tmm):
         solver = pcc.solvers.TSCNRLDS(basic_tmm)
-        solver.MAX_ITERS = 100
+        solver.max_iters = 100
         solver.abstol_temp = 1e-6
         solver.set_simulation_time(0.0, 100000.0, 1000.0, 10000.0)
 
@@ -65,8 +65,7 @@ class TestTSCNRLDS:
         solver.solve()
         solver.deinitialize()
 
-        model_name = solver.output_model_name
-        output_model = basic_tmm.thermal_data.models.get_model(model_name)
+        output_model = solver.output_model
         series = output_model.get_dense_attribute(DataModelAttribute.T)
         calculated_times = series.times
         calculated_temps = series.values

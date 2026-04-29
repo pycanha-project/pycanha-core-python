@@ -10,6 +10,15 @@ def test_submodules_exist():
     assert hasattr(pcc, "solvers")
 
 
+def test_v014_owner_and_registry_exports_exist():
+    assert hasattr(pcc.tmm, "ThermalModel")
+    assert hasattr(pcc.tmm, "EntitiesHelper")
+    assert hasattr(pcc.solvers, "SolverRegistry")
+    assert hasattr(pcc.solvers, "CallbackRegistry")
+    assert hasattr(pcc.solvers, "CallbackContext")
+    assert hasattr(pcc.parameters, "DerivativeParameterRegistry")
+
+
 def test_logging_exports_exist():
     assert hasattr(pcc, "Logger")
     assert hasattr(pcc, "LogLevel")

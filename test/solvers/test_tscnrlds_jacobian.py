@@ -25,15 +25,10 @@ def make_jacobian_example_model():
     model.parameters.add_parameter("k", 1.0)
     model.parameters.add_parameter("C", 1.0)
 
-    conductive_entity = pcc.parameters.Entity.gl(model.network, 1, 2)
-    capacity_entity = pcc.parameters.Entity.c(model.network, 1)
-
-    model.formulas.add_formula(
-        pcc.parameters.ParameterFormula(conductive_entity, model.parameters, "k")
-    )
-    model.formulas.add_formula(
-        pcc.parameters.ParameterFormula(capacity_entity, model.parameters, "C")
-    )
+    model.formulas.add_parameter_formula(model.entities.conductive_coupling(1, 2), "k")
+    model.formulas.add_parameter_formula(model.entities.capacity(1), "C")
+    model.formulas.parameters_with_derivatives.add_parameter("k")
+    model.formulas.parameters_with_derivatives.add_parameter("C")
     model.formulas.apply_formulas()
 
     return model
@@ -54,7 +49,7 @@ class TestTSCNRLDSJacobian:
     def test_solve_python_example(self):
         model = make_jacobian_example_model()
         solver = pcc.solvers.TSCNRLDS_JACOBIAN(model)
-        solver.MAX_ITERS = 50
+        solver.max_iters = 50
         solver.abstol_temp = 1e-9
         solver.set_simulation_time(0.0, 5.0, 0.01, 0.1)
 
@@ -64,8 +59,9 @@ class TestTSCNRLDSJacobian:
         output_name = solver.output_model_name
         assert model.thermal_data.models.has_model(output_name) is True
         assert solver.parameter_names == ["k", "C"]
+        assert solver.derivative_parameter_names == ["k", "C"]
 
-        output_model = model.thermal_data.models.get_model(output_name)
+        output_model = solver.output_model
         temp_series = output_model.get_dense_attribute(DataModelAttribute.T)
         jac_series = output_model.get_matrix_attribute(DataModelAttribute.JAC)
 

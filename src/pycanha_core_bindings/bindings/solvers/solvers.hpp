@@ -3,19 +3,24 @@
 #include <memory>
 #include <string>
 
+#include <nanobind/stl/function.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "pycanha-core/solvers/callback_registry.hpp"
 #include "pycanha-core/solvers/ss.hpp"
 #include "pycanha-core/solvers/sslu.hpp"
+#include "pycanha-core/solvers/solver_registry.hpp"
+#include "pycanha-core/thermaldata/data_model.hpp"
 #include "pycanha-core/solvers/ts.hpp"
 #include "pycanha-core/solvers/tscn.hpp"
 #include "pycanha-core/solvers/tscnrl.hpp"
 #include "pycanha-core/solvers/tscnrlds.hpp"
 #include "pycanha-core/solvers/tscnrlds_jacobian.hpp"
 #include "pycanha-core/tmm/thermalmathematicalmodel.hpp"
+#include "pycanha-core/tmm/thermalmodel.hpp"
 
 namespace nb = nanobind;
 using namespace nanobind::literals; // NOLINT(build/namespaces)
@@ -50,11 +55,16 @@ struct TransientSolverView : pycanha::TransientSolver {
 };
 
 inline void register_solvers(nb::module_ &m) {
-     using pycanha::SolverOutputConfig;
+     using pycanha::CallbackContext;
+     using pycanha::CallbackRegistry;
+     using pycanha::DataModel;
   using pycanha::Solver;
+     using pycanha::SolverOutputConfig;
+     using pycanha::SolverRegistry;
   using pycanha::SSLU;
   using pycanha::SteadyStateSolver;
   using pycanha::ThermalMathematicalModel;
+     using pycanha::ThermalModel;
   using pycanha::TransientSolver;
   using pycanha::TSCN;
   using pycanha::TSCNRL;
@@ -86,7 +96,7 @@ inline void register_solvers(nb::module_ &m) {
   nb::class_<Solver>(m, "Solver",
                     "Abstract base class for thermal solvers.\n\n"
                     "Lifecycle: initialize() -> solve() -> deinitialize().")
-      .def_rw("MAX_ITERS", &Solver::MAX_ITERS,
+      .def_rw("max_iters", &Solver::max_iters,
               "Maximum number of solver iterations per step.")
       .def_rw("abstol_temp", &Solver::abstol_temp,
               "Absolute temperature convergence tolerance [K].")
@@ -139,6 +149,11 @@ inline void register_solvers(nb::module_ &m) {
                          },
                          nb::rv_policy::reference_internal,
                          "Reference to the output configuration.")
+                 .def_prop_ro(
+                      "output_model",
+                      [](TransientSolver &self) -> DataModel & { return self.output_model(); },
+                      nb::rv_policy::reference_internal,
+                      "Reference to the transient output model.")
       .def_prop_ro(
           "time",
           [](const TransientSolver &self) {
@@ -204,7 +219,78 @@ inline void register_solvers(nb::module_ &m) {
       .def_prop_ro(
           "parameter_names",
           [](const TSCNRLDS_JACOBIAN &self) { return self.parameter_names(); },
-            "List of parameter names for which sensitivities are computed.");
+                         "List of parameter names referenced by Jacobian-enabled formulas.")
+               .def_prop_ro(
+                         "derivative_parameter_names",
+                         [](const TSCNRLDS_JACOBIAN &self) {
+                              return self.derivative_parameter_names();
+                         },
+                         "Ordered derivative-parameter subset used for Jacobian columns.");
+
+     nb::class_<CallbackContext>(m, "CallbackContext",
+                                                                           "Callback execution context for model-owned callbacks.")
+               .def_prop_ro(
+                         "tm",
+                         [](CallbackContext &self) -> ThermalModel & { return self.tm(); },
+                         nb::rv_policy::reference_internal,
+                         "Reference to the owning ThermalModel.")
+               .def_prop_ro(
+                         "tmm",
+                         [](CallbackContext &self) -> ThermalMathematicalModel & {
+                              return self.tmm();
+                         },
+                         nb::rv_policy::reference_internal,
+                         "Reference to the owning ThermalMathematicalModel.")
+               .def_prop_ro(
+                         "solver",
+                         [](CallbackContext &self) -> Solver & { return self.solver(); },
+                         nb::rv_policy::reference_internal,
+                         "Reference to the currently active solver.")
+               .def_prop_ro("time", &CallbackContext::time,
+                                              "Current model time [s].");
+
+     nb::class_<SolverRegistry>(m, "SolverRegistry",
+                                                                       "Lazy registry of persistent model-owned solver instances.")
+               .def_prop_ro(
+                         "sslu",
+                         [](SolverRegistry &self) -> SSLU & { return self.sslu(); },
+                         nb::rv_policy::reference_internal,
+                         "Persistent steady-state sparse-LU solver.")
+               .def_prop_ro(
+                         "tscnrlds",
+                         [](SolverRegistry &self) -> TSCNRLDS & { return self.tscnrlds(); },
+                         nb::rv_policy::reference_internal,
+                         "Persistent transient direct sparse solver.")
+               .def_prop_ro(
+                         "tscnrlds_jacobian",
+                         [](SolverRegistry &self) -> TSCNRLDS_JACOBIAN & {
+                              return self.tscnrlds_jacobian();
+                         },
+                         nb::rv_policy::reference_internal,
+                         "Persistent transient Jacobian solver.")
+               .def_prop_ro(
+                         "tmm",
+                         [](const SolverRegistry &self) -> std::shared_ptr<ThermalMathematicalModel> {
+                              return self.tmm_ptr();
+                         },
+                         "Shared pointer to the associated ThermalMathematicalModel.");
+
+     nb::class_<CallbackRegistry>(m, "CallbackRegistry",
+                                                                            "Model-owned callback registry for solver execution hooks.")
+               .def_rw("active", &CallbackRegistry::active,
+                                   "Master switch enabling or disabling callback execution.")
+               .def_rw("solver_loop", &CallbackRegistry::solver_loop,
+                                   "Python callback invoked during solver iterations.")
+               .def_rw("time_change", &CallbackRegistry::time_change,
+                                   "Python callback invoked when transient time changes.")
+               .def_rw("after_timestep", &CallbackRegistry::after_timestep,
+                                   "Python callback invoked after each transient timestep.")
+               .def("invoke_solver_loop", &CallbackRegistry::invoke_solver_loop,
+                          "Invoke the solver-loop callback immediately.")
+               .def("invoke_time_change", &CallbackRegistry::invoke_time_change,
+                          "Invoke the time-change callback immediately.")
+               .def("invoke_after_timestep", &CallbackRegistry::invoke_after_timestep,
+                          "Invoke the after-timestep callback immediately.");
 }
 
 } // namespace pycanha::bindings::solvers
