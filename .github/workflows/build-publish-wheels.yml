@@ -163,9 +163,12 @@ jobs:
         run: |
           cd pycanha-project/pycanha-core-python/dist
           sudo apt-get update && sudo apt-get install -y patchelf
+          # Use --plat auto instead of a hardcoded/derived tag: auditwheel inspects the
+          # actual glibc symbol versions referenced by the compiled .so and picks the
+          # most permissive (lowest) manylinux policy that's still valid for them.
           for whl in *.whl; do
             auditwheel repair "$whl" \
-              --plat manylinux_2_43_x86_64 \
+              --plat auto \
               --exclude 'libmkl_*.so*' \
               --exclude 'libiomp5.so*' \
               -w output
