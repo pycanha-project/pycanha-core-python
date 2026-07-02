@@ -442,7 +442,7 @@ inline void register_formulas(nb::module_ &m) {
            nb::rv_policy::reference_internal, "entity"_a, "expression"_a,
            "Add an ExpressionFormula bound to an entity string target.")
       .def("add_formula",
-           static_cast<Formula &(Formulas::*)(Entity, double)>(
+           static_cast<Formula &(Formulas::*)(const Entity &, double)>(
                &Formulas::add_formula),
            nb::rv_policy::reference_internal, "entity"_a, "value"_a,
            "Add a formula for an Entity target from a numeric value.")
@@ -452,7 +452,7 @@ inline void register_formulas(nb::module_ &m) {
            nb::rv_policy::reference_internal, "entity"_a, "value"_a,
            "Add a formula for an entity string target from a numeric value.")
       .def("add_formula",
-           static_cast<Formula &(Formulas::*)(Entity, const std::string &)>(
+           static_cast<Formula &(Formulas::*)(const Entity &, const std::string &)>(
                &Formulas::add_formula),
            nb::rv_policy::reference_internal, "entity"_a, "formula_string"_a,
            "Add a formula for an Entity target from a string expression.")

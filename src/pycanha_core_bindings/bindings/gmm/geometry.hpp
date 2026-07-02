@@ -1,124 +1,145 @@
 #pragma once
 #include <nanobind/eigen/dense.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
-#include <string>
 
-#include "pycanha-core/gmm/geometry.hpp"
+#include <cstdint>
+#include <memory>
+#include <span>
+
+#include "pycanha-core/gmm/scene/geometry.hpp"
+#include "pycanha-core/gmm/scene/geometry_group.hpp"
+#include "pycanha-core/gmm/scene/geometry_group_cutted.hpp"
+#include "pycanha-core/gmm/scene/geometry_item.hpp"
 
 namespace nb = nanobind;
 using namespace nanobind::literals;
 using namespace pycanha::gmm;
 
-void Geometry_b(nb::module_ &m) {
+// Object-centric scene tree. Objects are always held by std::shared_ptr and are
+// non-copyable (identity matters). Geometry is polymorphic, so nanobind returns
+// the concrete Python type (GeometryItem / GeometryGroup / GeometryGroupCutted)
+// for a shared_ptr<Geometry>. Operator sugar (+ / -) is intentionally NOT here;
+// it belongs to the pure-Python layer-3 package.
+
+namespace pycanha::bindings::gmm::detail {
+
+// span<const shared_ptr<Geometry>> -> Python list.
+// TODO(pycanha-core): expose a vector/binding-native children accessor in core
+// so this copy is unnecessary.
+inline nb::list geometry_span_to_list(
+    std::span<const std::shared_ptr<Geometry>> items) {
+  nb::list out;
+  for (const auto& item : items) {
+    out.append(item);
+  }
+  return out;
+}
+
+}  // namespace pycanha::bindings::gmm::detail
+
+inline void Geometry_b(nb::module_& m) {
   nb::class_<Geometry>(m, "Geometry",
-                      "Base class for all geometry elements.\n\n"
-                      "Each geometry has a unique ID, a name, an optional\n"
-                      "coordinate transformation, and an optional parent group.")
-      .def(nb::init<>(), "Create a geometry with auto-generated name.")
-      .def(nb::init<std::string>(), "name"_a,
-           "Create a geometry with the given name.")
-      .def(nb::init<std::string, TransformationPtr>(), "name"_a,
-           "transformation"_a,
-           "Create a geometry with name and transformation.")
-      .def_prop_rw("name", &Geometry::get_name, &Geometry::set_name,
-                   "Geometry name.")
-      .def_prop_rw("transformation", &Geometry::get_transformation,
-                   &Geometry::set_transformation,
-                   "Coordinate transformation applied to this geometry.")
-      .def_prop_rw("parent", &Geometry::get_parent, &Geometry::set_parent,
-                   "Parent GeometryGroup (weak reference).");
+                       "Abstract base of the scene tree (GeometryItem, "
+                       "GeometryGroup, GeometryGroupCutted).")
+      .def_prop_ro("name", &Geometry::name, "Unique name within the model.")
+      .def_prop_ro(
+          "id",
+          [](const Geometry& self) {
+            return static_cast<std::uint64_t>(self.id());
+          },
+          "Ephemeral process-wide-unique runtime id (uint64).")
+      .def_prop_rw("transform", &Geometry::transform, &Geometry::set_transform,
+                   "Coordinate transformation in the parent frame.")
+      .def_prop_ro(
+          "children",
+          [](const Geometry& self) {
+            return pycanha::bindings::gmm::detail::geometry_span_to_list(
+                self.children());
+          },
+          "Immediate children (empty for a GeometryItem).")
+      .def_prop_ro("mesh", &Geometry::mesh, nb::rv_policy::reference_internal,
+                   "Subtree mesh (TriMeshD) in the parent frame; lazily built.")
+      .def("create_mesh", &Geometry::create_mesh,
+           "Force a rebuild of this object's subtree mesh.")
+      .def_prop_ro("owning_model", &Geometry::owning_model,
+                   nb::rv_policy::reference,
+                   "The GeometryModel this object is registered with, or None.");
 }
 
-void GeometryItem_b(nb::module_ &m) {
-  nb::class_<GeometryItem, Geometry>(m, "GeometryItem",
-                                    "Geometry element holding a single Primitive.")
-      .def(nb::init<>(), "Create an empty geometry item.")
-      .def(nb::init<std::string, PrimitivePtr, TransformationPtr>(), "name"_a,
-           "primitive"_a, "transformation"_a,
-           "Create a geometry item with a primitive and transformation.")
-      .def_prop_rw("primitive", &GeometryItem::get_primitive,
-                   &GeometryItem::set_primitive,
-                   "The geometric Primitive of this item.");
+inline void GeometryItem_b(nb::module_& m) {
+  nb::class_<GeometryItem, Geometry>(
+      m, "GeometryItem",
+      "A single meshable primitive plus its ThermalMesh (a scene-tree leaf).")
+      .def(nb::init<std::string, Primitive, ThermalMesh,
+                    CoordinateTransformation>(),
+           "name"_a, "primitive"_a, "thermal_mesh"_a,
+           "transform"_a = CoordinateTransformation(),
+           "Create a geometry item.")
+      .def_prop_rw("primitive", &GeometryItem::primitive,
+                   &GeometryItem::set_primitive, "The wrapped primitive.")
+      .def_prop_rw("thermal_mesh", &GeometryItem::thermal_mesh,
+                   &GeometryItem::set_thermal_mesh, "The thermal mesh.")
+      .def_prop_rw("mesh_options_override",
+                   &GeometryItem::mesh_options_override,
+                   &GeometryItem::set_mesh_options_override,
+                   "Per-item MeshOptions override (None to use model default).");
 }
 
-void GeometryGroup_b(nb::module_ &m) {
+inline void GeometryGroup_b(nb::module_& m) {
   nb::class_<GeometryGroup, Geometry>(
       m, "GeometryGroup",
-      "Hierarchical container of GeometryMeshedItems, sub-groups,\n"
-      "and cutted groups. Applies a shared transformation to all children.")
-      .def(nb::init<>(), "Create an empty geometry group.")
-      .def(nb::init<std::string>(), "name"_a,
-           "Create a geometry group with the given name.")
-      .def(nb::init<std::string, GeometryPtrList, TransformationPtr>(),
-           "name"_a, "geometry_items"_a, "transformation"_a,
-           "Create a group with items and a shared transformation.")
-      .def_prop_rw("geometry_items", &GeometryGroup::get_geometry_items,
-                   &GeometryGroup::set_geometry_items,
-                   "List of child GeometryMeshedItems.")
-      .def_prop_rw("geometry_groups", &GeometryGroup::get_geometry_groups,
-                   &GeometryGroup::set_geometry_groups,
-                   "List of child GeometryGroups.")
-      .def("add_geometry_item", &GeometryGroup::add_geometry_item,
-           "Add a GeometryMeshedItem to this group.")
-      .def("add_geometry_group", &GeometryGroup::add_geometry_group,
-           "Add a child GeometryGroup.")
-      .def("remove_geometry_item", &GeometryGroup::remove_geometry_item,
-           "Remove a GeometryMeshedItem from this group.")
-      .def("remove_geometry_group", &GeometryGroup::remove_geometry_group,
-           "Remove a child GeometryGroup.")
-      .def_prop_rw("geometry_groups_cutted",
-                   &GeometryGroup::get_geometry_groups_cutted,
-                   &GeometryGroup::set_geometry_groups_cutted,
-                   "List of child GeometryGroupCutted objects.");
+      "A transform applied to a collection of child geometries.")
+      .def(nb::init<std::string, std::vector<std::shared_ptr<Geometry>>,
+                    CoordinateTransformation>(),
+           "name"_a, "children"_a = std::vector<std::shared_ptr<Geometry>>{},
+           "transform"_a = CoordinateTransformation(),
+           "Create a geometry group.")
+      .def("add", &GeometryGroup::add, "child"_a,
+           "Append a child (rejects nullptr, registered, or duplicate nodes).")
+      .def("remove_child", &GeometryGroup::remove_child, "child"_a,
+           "Remove a child; returns True if it was present.");
 }
 
-void GeometryGroupCutted_b(nb::module_ &m) {
-  nb::class_<GeometryGroupCutted, GeometryGroup>(
+inline void GeometryGroupCutted_b(nb::module_& m) {
+  nb::class_<GeometryGroupCutted, Geometry>(
       m, "GeometryGroupCutted",
-      "Geometry group where child meshes are cut by\n"
-      "cutting primitives (boolean subtraction).")
-      .def_prop_rw("cutting_geometry_items",
-                   &GeometryGroupCutted::get_cutting_geometry_items,
-                   &GeometryGroupCutted::set_cutting_geometry_items,
-                   "List of geometry items used as cutting tools.")
-      .def("add_cutting_geometry_item",
-           &GeometryGroupCutted::add_cutting_geometry_item,
-           "Add a geometry item as a cutting tool.")
-      .def("remove_cutting_geometry_item",
-           &GeometryGroupCutted::remove_cutting_geometry_item,
-           "Remove a cutting geometry item.")
-      .def("create_cutted_mesh", &GeometryGroupCutted::create_cutted_mesh,
-           "Perform the cutting operation and generate cut meshes.")
-      .def_prop_rw("cutted_geometry_meshed_items",
-                   &GeometryGroupCutted::get_cutted_geometry_meshed_items,
-                   &GeometryGroupCutted::set_cutted_geometry_meshed_items,
-                   "List of resulting cut GeometryMeshedItems.");
-  // TODO: Check this
-  //  .def_prop_rw("cutting_primitives",
-  //                 &GeometryGroupCutted::get_cutting_primitives,
-  //                 &GeometryGroupCutted::set_cutting_primitives);
+      "Boolean-subtract group: every target is cut by the union of all "
+      "cutters (each cutter must be a closed-solid GeometryItem).")
+      .def(nb::init<std::string, std::vector<std::shared_ptr<Geometry>>,
+                    std::vector<std::shared_ptr<GeometryItem>>,
+                    CoordinateTransformation>(),
+           "name"_a, "targets"_a, "cutters"_a,
+           "transform"_a = CoordinateTransformation(),
+           "Create a cut group from targets and cutters.")
+      .def("cut_with", &GeometryGroupCutted::cut_with, "cutter"_a,
+           "Add another cutter (must be a closed-solid GeometryItem).")
+      .def_prop_ro(
+          "targets",
+          [](const GeometryGroupCutted& self) {
+            return pycanha::bindings::gmm::detail::geometry_span_to_list(
+                self.targets());
+          },
+          "The target geometries being cut.")
+      .def_prop_ro(
+          "cutters",
+          [](const GeometryGroupCutted& self) {
+            // TODO(pycanha-core): span<const shared_ptr<GeometryItem>> copied to
+            // a list; a binding-native accessor in core would remove this.
+            nb::list out;
+            for (const auto& cutter : self.cutters()) {
+              out.append(cutter);
+            }
+            return out;
+          },
+          "The cutter geometry items.");
 }
 
-void GeometryMeshedItem_b(nb::module_ &m) {
-  nb::class_<GeometryMeshedItem, GeometryItem>(
-      m, "GeometryMeshedItem",
-      "Geometry item with thermal mesh properties and\n"
-      "a generated triangle mesh.")
-      .def(nb::init<>(), "Create an empty meshed geometry item.")
-      .def(nb::init<std::string, PrimitivePtr, TransformationPtr,
-                    ThermalMeshPtr>(),
-           "name"_a, "primitive"_a, "transformation"_a, "thermal_mesh"_a,
-           "Create a meshed item with primitive, transform, and thermal mesh.")
-      .def_prop_rw("thermal_mesh", &GeometryMeshedItem::get_thermal_mesh,
-                   &GeometryMeshedItem::set_thermal_mesh,
-                   "ThermalMesh defining surface properties and mesh divisions.")
-      .def_prop_rw("tri_mesh", &GeometryMeshedItem::get_tri_mesh,
-                   &GeometryMeshedItem::set_tri_mesh,
-                   "Generated TriMesh (triangle mesh data).")
-      .def("triangulate_post_processed_cutted_mesh",
-           &GeometryMeshedItem::triangulate_post_processed_cutted_mesh,
-           "Triangulate the mesh after cutting post-processing.");
+inline void is_closed_solid_b(nb::module_& m) {
+  m.def("is_closed_solid", &is_closed_solid, "primitive"_a,
+        "Whether a primitive is a closed solid usable as a cutter.");
 }
