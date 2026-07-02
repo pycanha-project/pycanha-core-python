@@ -9,16 +9,29 @@ compiler = msvc
 compiler.runtime_type = Release
 compiler.cppstd = 23
 compiler.runtime = dynamic
-# GitHub Actions windows-latest currently ships MSVC 19.4x (toolset 14.4x).
-compiler.version = 194
+# Matches pycanha-core's windows-msvc2026-amd64 profile: the CI now runs on the
+# windows-2025-vs2026 runner, i.e. Visual Studio 2026 / MSVC 19.5x (toolset 14.5x).
+compiler.version = 195
 os = Windows
 
+[tool_requires]
+# hdf5's recipe caps CMake to < 4 (cmake/[>=3.18 <4]), but the
+# "Visual Studio 18 2026" generator was only added in CMake 4.2. Build hdf5
+# with Ninja (its own cmake + MSVC via vcvars). Scoped to hdf5 only; pycanha-core
+# and the bindings keep using the Visual Studio generator and just link hdf5's
+# artifacts. Mirrors the same pin in pycanha-core's windows-msvc2026-amd64 profile.
+hdf5/*: ninja/[>=1.11]
+
+[conf]
+hdf5/*:tools.cmake.cmaketoolchain:generator=Ninja
+
 {% elif platform.system()=="Darwin" %}
-# macOS with Apple Clang
+# macOS with Apple Clang. apple-clang 21 is the default clang on the macos-26
+# runner image (matches pycanha-core's macos-clang21-arm64 profile).
 compiler = apple-clang
 compiler.cppstd = 23
 compiler.libcxx = libc++
-compiler.version = 17.0
+compiler.version = 21
 os = Macos
 
 [buildenv]
@@ -30,15 +43,17 @@ CXX = clang++
 compiler = gcc
 compiler.cppstd = 23
 compiler.libcxx = libstdc++11
-compiler.version = 14
+compiler.version = 15
 os = Linux
 
 [buildenv]
-# gcc-13 was working fine until an update to the github ubuntu runner (I think). Now it
-# compiles the wheel with a too recent version of glibc, which is not compatible with
-# manylinux wheels. So I'm using gcc-14 for now. To check the compatibility of the wheel
-# with manylinux, you can use the auditwheel tool.
-CC = gcc-14
-CXX = g++-14
+# Linux wheels are built with gcc-15 (matches pycanha-core's primary Linux compiler;
+# available on the ubuntu-26.04 runner). The ubuntu-26.04 image ships a newer glibc than
+# 24.04, so the produced wheel targets a higher manylinux tag than before — the
+# auditwheel-repair step in the CI now derives the manylinux platform automatically from
+# the runner's glibc instead of hardcoding manylinux_2_39. Use the auditwheel tool to
+# check wheel/manylinux compatibility.
+CC = gcc-15
+CXX = g++-15
 
 {% endif %}

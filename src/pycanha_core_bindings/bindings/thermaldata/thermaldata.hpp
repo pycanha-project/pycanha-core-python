@@ -9,6 +9,7 @@
 #include <nanobind/eigen/sparse.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
 
 #include "pycanha-core/globals.hpp"
@@ -20,6 +21,7 @@
 #include "pycanha-core/thermaldata/dense_matrix_time_series.hpp"
 #include "pycanha-core/thermaldata/dense_time_series.hpp"
 #include "pycanha-core/thermaldata/lookup_table.hpp"
+#include "pycanha-core/thermaldata/named_constants.hpp"
 #include "pycanha-core/thermaldata/sparse_time_series.hpp"
 #include "pycanha-core/thermaldata/thermaldata.hpp"
 
@@ -311,6 +313,58 @@ inline void register_thermaldata_types(nb::module_ &m) {
       .def_prop_ro("table_names", &DataTableStore::table_names,
                    "Names of all stored lookup tables.");
 
+  // ── NamedConstants ────────────────────────────────────────────────────
+  // Passive container for ESATAN user-defined named constants ($REAL /
+  // $INTEGER / $CHARACTER) read from a .TMD file. Matrices are exposed as
+  // read-only numpy views (row-major, so C-contiguous).
+  using pycanha::NamedConstants;
+  nb::class_<NamedConstants>(
+      m, "NamedConstants",
+      "Raw storage for ESATAN user-defined named constants (transient series "
+      "sharing one time axis). Values are never interpolated.")
+      .def(nb::init<>(), "Create an empty NamedConstants container.")
+      .def_prop_ro(
+          "times",
+          [](const NamedConstants &self) -> const Eigen::VectorXd & {
+            return self.times();
+          },
+          nb::rv_policy::reference_internal,
+          "Shared time axis, one entry per timestep.")
+      .def_prop_ro(
+          "real_names",
+          [](const NamedConstants &self) { return self.real_names(); },
+          "Names of the $REAL constants.")
+      .def_prop_ro(
+          "real_values",
+          [](const NamedConstants &self)
+              -> const NamedConstants::RealMatrix & {
+            return self.real_values();
+          },
+          nb::rv_policy::reference_internal,
+          "$REAL values (num_timesteps x num_real), read-only view.")
+      .def_prop_ro(
+          "int_names",
+          [](const NamedConstants &self) { return self.int_names(); },
+          "Names of the $INTEGER constants.")
+      .def_prop_ro(
+          "int_values",
+          [](const NamedConstants &self) -> const NamedConstants::IntMatrix & {
+            return self.int_values();
+          },
+          nb::rv_policy::reference_internal,
+          "$INTEGER values (num_timesteps x num_int), read-only view.")
+      .def_prop_ro(
+          "char_names",
+          [](const NamedConstants &self) { return self.char_names(); },
+          "Names of the $CHARACTER constants.")
+      .def_prop_ro("char_width", &NamedConstants::char_width,
+                   "Fixed byte width of each character value.")
+      .def("char_value", &NamedConstants::char_value, "t"_a, "c"_a,
+           "Raw fixed-width value of character constant c at timestep t "
+           "(trailing spaces not stripped).")
+      .def_prop_ro("num_timesteps", &NamedConstants::num_timesteps,
+                   "Number of timesteps in the shared time axis.");
+
   // ── DataModel ─────────────────────────────────────────────────────────
 
   nb::class_<DataModel>(
@@ -328,6 +382,13 @@ inline void register_thermaldata_types(nb::module_ &m) {
           "Node-number ordering used by the dense and sparse outputs.")
       .def_prop_ro("populated_attributes", &DataModel::populated_attributes,
                    "List the attributes that currently contain data.")
+      .def_prop_ro(
+          "constants",
+          [](DataModel &self) -> pycanha::NamedConstants & {
+            return self.constants();
+          },
+          nb::rv_policy::reference_internal,
+          "ESATAN user-defined named constants attached to this model.")
       .def_prop_ro(
           "T", [](DataModel &self) -> DenseTimeSeries & { return self.T(); },
           nb::rv_policy::reference_internal, "Temperature time series.")

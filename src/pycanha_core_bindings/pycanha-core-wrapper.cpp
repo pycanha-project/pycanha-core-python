@@ -12,6 +12,9 @@
 
 #include "bindings/gmm/geometry.hpp"
 #include "bindings/gmm/geometrymodel.hpp"
+#include "bindings/gmm/materials.hpp"
+#include "bindings/gmm/mesh.hpp"
+#include "bindings/gmm/ops.hpp"
 #include "bindings/gmm/primitives.hpp"
 #include "bindings/gmm/thermalmesh.hpp"
 #include "bindings/gmm/transformations.hpp"
@@ -44,31 +47,44 @@ NB_MODULE(pycanha_core, m) {
   nb::module_ gmm_submodule =
       m.def_submodule("gmm", "Geometrical Mathematical Model");
 
-  Primitive_b(gmm_submodule);
-
+  // Primitives: nine independent value classes (no base). The Primitive
+  // variant maps each to its concrete Python type via <nanobind/stl/variant.h>.
   Triangle_b(gmm_submodule);
   Rectangle_b(gmm_submodule);
   Quadrilateral_b(gmm_submodule);
-  Cylinder_b(gmm_submodule);
   Disc_b(gmm_submodule);
+  Cylinder_b(gmm_submodule);
   Cone_b(gmm_submodule);
   Sphere_b(gmm_submodule);
+  Paraboloid_b(gmm_submodule);
+  Cube_b(gmm_submodule);
 
+  // Materials (shared_ptr-held inside ThermalMesh).
+  Color_b(gmm_submodule);
+  BulkMaterial_b(gmm_submodule);
+  OpticalMaterial_b(gmm_submodule);
+
+  // Meshes and transforms.
   ThermalMesh_b(gmm_submodule);
-
   CoordinateTransformation_b(gmm_submodule);
+  TriMeshD_b(gmm_submodule);
+  TriMeshF_b(gmm_submodule);
 
+  // Meshing driver and free operations.
+  MeshOptions_b(gmm_submodule);
+  UvMesher_b(gmm_submodule);
+  mesh_ops_b(gmm_submodule);
+  ops_b(gmm_submodule);
+
+  // Scene tree (base first, then concrete types).
   Geometry_b(gmm_submodule);
   GeometryItem_b(gmm_submodule);
-  GeometryMeshedItem_b(gmm_submodule);
   GeometryGroup_b(gmm_submodule);
   GeometryGroupCutted_b(gmm_submodule);
+  is_closed_solid_b(gmm_submodule);
 
+  // Model.
   GeometryModel_b(gmm_submodule);
-
-  TriMesh_b(gmm_submodule);
-  TriMeshModel_b(gmm_submodule);
-  primitive_meshers_b(gmm_submodule);
 
   nb::module_ tmm_submodule =
       m.def_submodule("tmm", "Thermal Mathematical Model");

@@ -130,8 +130,8 @@ inline void CouplingMatrices_b(nb::module_ &m) {
            "Check whether a coupling exists between two internal indices.")
       .def("print_sparse", &CouplingMatrices::print_sparse,
            "Print the sparse matrices to the logger (debug).")
-      .def("reserve", &CouplingMatrices::reserve, "nnz"_a,
-           "Pre-allocate space for the given number of non-zeros.");
+      .def_static("reserve", &CouplingMatrices::reserve, "nnz"_a,
+                  "Pre-allocate space for the given number of non-zeros.");
 }
 
 inline void Couplings_b(nb::module_ &m) {
