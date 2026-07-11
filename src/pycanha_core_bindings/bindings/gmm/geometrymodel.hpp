@@ -7,7 +7,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
+#include <vector>
 
 #include "pycanha-core/gmm/geometrymodel.hpp"
 
@@ -110,5 +112,19 @@ inline void GeometryModel_b(nb::module_& m) {
             return out;
           },
           "node_num"_a,
-          "Face ids assigned to a node number (built at mesh build).");
+          "Face ids assigned to a node number (built at mesh build).")
+      .def(
+          "mesh_parts",
+          [](const GeometryModel& self,
+             const std::vector<std::string>& split) {
+            return self.mesh_parts(std::span<const std::string>(split));
+          },
+          "split"_a = std::vector<std::string>{},
+          "Split the model mesh into rigid ScenePart pieces for the raytracer: "
+          "one part per named geometry in `split` (its subtree, in its local "
+          "frame) plus a remainder part in the world frame. Face ids stay "
+          "global across parts.")
+      .def("material_table", &GeometryModel::material_table,
+           "Build the per-face-slot MaterialTable (optical material + activity) "
+           "from the per-side ThermalMesh data.");
 }

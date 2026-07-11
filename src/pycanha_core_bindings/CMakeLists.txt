@@ -90,6 +90,14 @@ else()
         DEPENDS pycanha_core
     )
 
+    nanobind_add_stub(
+        pycanha_core_radiative_stub
+        MODULE pycanha_core.radiative
+        OUTPUT "${STUB_DIR}/radiative.pyi"
+        PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+        DEPENDS pycanha_core
+    )
+
     install(
         DIRECTORY "${STUB_DIR}/"
         DESTINATION pycanha_core

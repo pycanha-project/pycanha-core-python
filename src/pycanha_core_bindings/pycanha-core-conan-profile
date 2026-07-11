@@ -21,9 +21,14 @@ os = Windows
 # and the bindings keep using the Visual Studio generator and just link hdf5's
 # artifacts. Mirrors the same pin in pycanha-core's windows-msvc2026-amd64 profile.
 hdf5/*: ninja/[>=1.11]
+# spirv-tools (pulled in by the raytracing option as a build-time spirv-val
+# check) has the same CMake-<4 cap, so it can't emit the VS2026 generator
+# either. Build it with Ninja too; scoped to spirv-tools only.
+spirv-tools/*: ninja/[>=1.11]
 
 [conf]
 hdf5/*:tools.cmake.cmaketoolchain:generator=Ninja
+spirv-tools/*:tools.cmake.cmaketoolchain:generator=Ninja
 
 {% elif platform.system()=="Darwin" %}
 # macOS with Apple Clang. apple-clang 21 is the default clang on the macos-26

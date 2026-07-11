@@ -124,6 +124,21 @@ jobs:
             --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
+      # Software Vulkan (lavapipe) so the radiative tests can run a small
+      # view-factor end-to-end on the CPU. Mirrors pycanha-core's ubuntu-26.04
+      # lavapipe step; the ICD is pinned so the loader picks lavapipe and never
+      # a partially-present hardware driver. Radiative tests skip themselves
+      # when radiative.is_available() is False, so this is best-effort.
+      - name: Install lavapipe (software Vulkan)
+        if: matrix.os == 'ubuntu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
+          ICD=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+        shell: bash
+
       - name: Run tests
         run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
@@ -225,7 +240,7 @@ jobs:
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python/stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -331,7 +346,7 @@ jobs:
       - name: Validate pregenerated stubs
         run: |
           cd pycanha-project/pycanha-core-python/pregenerated-stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
