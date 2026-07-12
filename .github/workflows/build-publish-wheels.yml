@@ -134,9 +134,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
-          ICD=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          # Glob instead of hardcoding: Mesa 26 dropped the arch suffix
+          # (lvp_icd.json, previously lvp_icd.x86_64.json).
+          ICD=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)
+          if [ -z "$ICD" ]; then
+            echo "::error::no lavapipe ICD found in /usr/share/vulkan/icd.d"
+            ls /usr/share/vulkan/icd.d/ || true
+            exit 1
+          fi
+          echo "Using lavapipe ICD: $ICD"
           echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
           echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+          # Surface the device the loader will pick, so a broken driver is
+          # diagnosed here and not in the radiative test assertions.
+          VK_ICD_FILENAMES="$ICD" VK_DRIVER_FILES="$ICD" vulkaninfo --summary | grep -A5 "GPU0" || true
         shell: bash
 
       - name: Run tests
