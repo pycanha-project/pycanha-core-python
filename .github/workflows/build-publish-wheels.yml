@@ -124,11 +124,11 @@ jobs:
             --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
-      # Software Vulkan (lavapipe) so the radiative tests can run a small
-      # view-factor end-to-end on the CPU. Mirrors pycanha-core's ubuntu-26.04
-      # lavapipe step; the ICD is pinned so the loader picks lavapipe and never
-      # a partially-present hardware driver. Radiative tests skip themselves
-      # when radiative.is_available() is False, so this is best-effort.
+      # Software Vulkan (lavapipe) so the radiative tests run their view-factor
+      # end-to-end on the CPU. Mirrors pycanha-core's ubuntu-26.04 lavapipe step;
+      # the ICD is pinned so the loader picks lavapipe and never a partially-
+      # present hardware driver. REQUIRED: the radiative tests only skip on macOS,
+      # so on Linux a missing/broken lavapipe is a real test failure.
       - name: Install lavapipe (software Vulkan)
         if: matrix.os == 'ubuntu'
         run: |

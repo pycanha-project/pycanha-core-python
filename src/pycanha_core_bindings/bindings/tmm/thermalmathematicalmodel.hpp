@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <initializer_list>
 #include <memory>
 #include <string>
 
@@ -99,6 +101,49 @@ inline void register_entities_helper(nb::module_ &m) {
            "node_num_1"_a, "node_num_2"_a,
            "Create a radiative-coupling entity.");
 }
+
+// ThermalMathematicalModel stores Python callables inside C++ std::function
+// members, holding strong references that Python's cyclic garbage collector
+// cannot see. A callback that (directly or through other objects) refers back
+// to the model creates an uncollectable cycle, so the model and everything it
+// pins would stay alive until interpreter shutdown, where nanobind reports
+// them as leaked. These GC hooks expose (tp_traverse) and release (tp_clear)
+// those hidden references so such cycles are collected normally.
+inline int tmm_tp_traverse(PyObject *self, visitproc visit, void *arg) {
+  Py_VISIT(Py_TYPE(self));
+  if (!nb::inst_ready(self)) {
+    return 0;
+  }
+  auto *model = nb::inst_ptr<pycanha::ThermalMathematicalModel>(self);
+  using FunctionCaster = nb::detail::type_caster<std::function<void()>>;
+  for (const std::function<void()> *slot :
+       {&model->python_apply_formulas,
+        &model->python_extern_callback_solver_loop,
+        &model->python_extern_callback_transient_time_change,
+        &model->python_extern_callback_transient_after_timestep}) {
+    if (const auto *wrapper = slot->target<FunctionCaster::pyfunc_wrapper_t>()) {
+      Py_VISIT(wrapper->f);
+    }
+  }
+  return 0;
+}
+
+inline int tmm_tp_clear(PyObject *self) {
+  if (!nb::inst_ready(self)) {
+    return 0;
+  }
+  auto *model = nb::inst_ptr<pycanha::ThermalMathematicalModel>(self);
+  model->python_apply_formulas = []() {};
+  model->python_extern_callback_solver_loop = []() {};
+  model->python_extern_callback_transient_time_change = []() {};
+  model->python_extern_callback_transient_after_timestep = []() {};
+  return 0;
+}
+
+inline PyType_Slot tmm_gc_slots[] = {
+    {Py_tp_traverse, reinterpret_cast<void *>(tmm_tp_traverse)},
+    {Py_tp_clear, reinterpret_cast<void *>(tmm_tp_clear)},
+    {0, nullptr}};
 
 inline void register_thermal_model(nb::module_ &m) {
   using pycanha::CallbackRegistry;
@@ -213,7 +258,8 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
       "Top-level thermal mathematical model.\n\n"
       "Aggregates a thermal network (nodes and couplings),\n"
       "parameters, formulas, thermal data tables, and\n"
-      "solver callbacks. Non-copyable.")
+      "solver callbacks. Non-copyable.",
+      nb::type_slots(tmm_gc_slots))
       .def(nb::init<std::string>(), "model_name"_a,
            "Create a model with an empty network.")
       .def(nb::init<std::string, std::shared_ptr<ThermalNetwork>,

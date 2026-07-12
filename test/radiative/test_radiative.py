@@ -1,16 +1,23 @@
 """Tests for the pycanha_core.radiative bindings (0.16).
 
-Everything that does not need a GPU (the value types, the CSR container and the
-CPU face->node aggregation services) runs unconditionally. The view-factor
-end-to-end is guarded on ``radiative.is_available()`` so the suite passes on
-machines with no Vulkan driver and exercises the full path where one exists
-(e.g. lavapipe in CI).
+The view-factor end-to-end runs on EVERY platform where the raytracer is built
+(hardware GPU or software lavapipe) and is expected to succeed — a missing or
+broken device is a real failure, not a skip. The only exception is macOS, where
+the raytracer is compiled out until the Metal backend lands; there the whole
+GPU-dependent class is skipped (and ``is_available()`` returns False).
 """
+
+import platform
 
 import numpy as np
 import pytest
 
 import pycanha_core as pcc
+
+# macOS builds force PYCANHA_OPTION_RAYTRACING off (no Metal backend yet), so the
+# radiative device is genuinely absent there. Everywhere else the raytracer is
+# built and must work.
+_RAYTRACER_DISABLED = platform.system() == "Darwin"
 
 rad = pcc.radiative
 gmm = pcc.gmm
@@ -187,10 +194,14 @@ class TestGmmRadiativeEntryPoints:
 
 
 @pytest.mark.skipif(
-    not rad.is_available(),
-    reason="no ray-tracing-capable Vulkan device available",
+    _RAYTRACER_DISABLED,
+    reason="raytracing is compiled out on macOS until the Metal backend lands",
 )
 class TestViewFactorEndToEnd:
+    def test_device_available(self):
+        # On every non-macOS platform a device (hardware or lavapipe) must exist.
+        assert rad.is_available()
+
     def test_device_and_scene(self):
         info_list = rad.enumerate_devices()
         assert any(d.ray_tracing for d in info_list)
