@@ -430,12 +430,25 @@ jobs:
           PYDIR=$(cygpath -u "$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')")
           cp "$LOADER_DIR/vulkan-1.dll" "$PYDIR/"
 
-          echo "Using lavapipe ICD: $ICD"
-          echo "VK_ICD_FILENAMES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
-          echo "VK_DRIVER_FILES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
+          # The runner executes everything elevated (UAC disabled), and the
+          # Vulkan loader IGNORES VK_ICD_FILENAMES/VK_DRIVER_FILES in elevated
+          # processes (loader security feature). Register the ICD in the HKLM
+          # registry instead — the discovery path elevation does not disable.
+          # The env vars are still set below for any non-elevated child.
+          ICD_WIN=$(cygpath -w "$ICD")
+          MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' \
+            /v "$ICD_WIN" /t REG_DWORD /d 0 /f
+
+          echo "Using lavapipe ICD: $ICD_WIN"
+          echo "VK_ICD_FILENAMES=$ICD_WIN" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$ICD_WIN" >> "$GITHUB_ENV"
         shell: bash
 
       - name: Show Vulkan device seen by the extension
+        env:
+          # Loader-internal tracing: if no device shows up, this prints WHY
+          # (which manifests were found, why an ICD was skipped, etc.).
+          VK_LOADER_DEBUG: error,warn,driver
         run: |
           cd pycanha-project/pycanha-core-python
           python -c "
