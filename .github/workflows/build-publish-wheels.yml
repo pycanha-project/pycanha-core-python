@@ -423,21 +423,31 @@ jobs:
             exit 1
           fi
 
+          # Python restricts the process DLL search (SetDefaultDllDirectories),
+          # so volk's LoadLibraryA("vulkan-1.dll") ignores PATH entirely. The
+          # application (python.exe) directory is always searched, so place the
+          # loader there.
+          PYDIR=$(cygpath -u "$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')")
+          cp "$LOADER_DIR/vulkan-1.dll" "$PYDIR/"
+
           echo "Using lavapipe ICD: $ICD"
           echo "VK_ICD_FILENAMES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
           echo "VK_DRIVER_FILES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
-          echo "$(cygpath -w "$LOADER_DIR")" >> "$GITHUB_PATH"
         shell: bash
 
       - name: Show Vulkan device seen by the extension
         run: |
           cd pycanha-project/pycanha-core-python
           python -c "
+          import sys
           import pycanha_core as pcc
           rad = pcc.radiative
-          print('is_available:', rad.is_available())
+          ok = rad.is_available()
+          print('is_available:', ok)
           for d in rad.enumerate_devices():
               print(f'  device {d.index}: {d.name} ray_tracing={d.ray_tracing}')
+          if not ok:
+              sys.exit('::error::lavapipe not visible to the extension - check the install step')
           "
         shell: bash
 
