@@ -124,6 +124,32 @@ jobs:
             --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
         shell: bash
 
+      # Software Vulkan (lavapipe) so the radiative tests run their view-factor
+      # end-to-end on the CPU. Mirrors pycanha-core's ubuntu-26.04 lavapipe step;
+      # the ICD is pinned so the loader picks lavapipe and never a partially-
+      # present hardware driver. REQUIRED: the radiative tests only skip on macOS,
+      # so on Linux a missing/broken lavapipe is a real test failure.
+      - name: Install lavapipe (software Vulkan)
+        if: matrix.os == 'ubuntu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
+          # Glob instead of hardcoding: Mesa 26 dropped the arch suffix
+          # (lvp_icd.json, previously lvp_icd.x86_64.json).
+          ICD=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)
+          if [ -z "$ICD" ]; then
+            echo "::error::no lavapipe ICD found in /usr/share/vulkan/icd.d"
+            ls /usr/share/vulkan/icd.d/ || true
+            exit 1
+          fi
+          echo "Using lavapipe ICD: $ICD"
+          echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+          # Surface the device the loader will pick, so a broken driver is
+          # diagnosed here and not in the radiative test assertions.
+          VK_ICD_FILENAMES="$ICD" VK_DRIVER_FILES="$ICD" vulkaninfo --summary | grep -A5 "GPU0" || true
+        shell: bash
+
       - name: Run tests
         run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
@@ -225,7 +251,7 @@ jobs:
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python/stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -331,7 +357,7 @@ jobs:
       - name: Validate pregenerated stubs
         run: |
           cd pycanha-project/pycanha-core-python/pregenerated-stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -361,6 +387,81 @@ jobs:
           pip install ".[test,build,mkl]" \
             --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
             --config-settings=cmake.define.PYCANHA_PREGENERATED_STUBS_DIR="$STUBS_DIR"
+        shell: bash
+
+      # Software Vulkan (lavapipe) so the radiative tests run their view-factor
+      # end-to-end on the GPU-less runner — the Windows twin of the ubuntu job's
+      # lavapipe step. mesa-dist-win supplies the lavapipe ICD (Mesa 26.0.x, the
+      # same generation verified on Linux); volk dlopens vulkan-1.dll at runtime
+      # and the runner has no GPU driver, so the Khronos loader comes from conan
+      # (vulkan-loader, same version family as core's vulkan-headers/volk pins).
+      # REQUIRED: the radiative tests only skip on macOS, so a missing/broken
+      # lavapipe here is a real test failure.
+      - name: Install lavapipe (software Vulkan)
+        run: |
+          MESA_VERSION=26.0.8
+          MESA_SHA256=a438c26c2752726916e455f9ad121f8a7e3cfecf8626251abf8e5b3e129d8497
+          curl -sSL -o mesa3d.7z \
+            "https://github.com/pal1000/mesa-dist-win/releases/download/${MESA_VERSION}/mesa3d-${MESA_VERSION}-release-msvc.7z"
+          echo "${MESA_SHA256}  mesa3d.7z" | sha256sum -c -
+          7z x mesa3d.7z -omesa3d -y > /dev/null
+          ICD="$(pwd)/mesa3d/x64/lvp_icd.x86_64.json"
+          if [ ! -f "$ICD" ]; then
+            echo "::error::lavapipe ICD not found in mesa-dist-win archive"
+            ls mesa3d/x64 || true
+            exit 1
+          fi
+
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          conan install --requires=vulkan-loader/1.4.350.0 --build=missing \
+            -pr:h="$PROFILE" -pr:b="$PROFILE" \
+            --deployer=direct_deploy --deployer-folder=vulkan-loader
+          LOADER_DIR="$(pwd)/vulkan-loader/direct_deploy/vulkan-loader/bin"
+          if [ ! -f "$LOADER_DIR/vulkan-1.dll" ]; then
+            echo "::error::vulkan-1.dll not produced by conan vulkan-loader"
+            find vulkan-loader -name '*.dll' || true
+            exit 1
+          fi
+
+          # Python restricts the process DLL search (SetDefaultDllDirectories),
+          # so volk's LoadLibraryA("vulkan-1.dll") ignores PATH entirely. The
+          # application (python.exe) directory is always searched, so place the
+          # loader there.
+          PYDIR=$(cygpath -u "$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')")
+          cp "$LOADER_DIR/vulkan-1.dll" "$PYDIR/"
+
+          # The runner executes everything elevated (UAC disabled), and the
+          # Vulkan loader IGNORES VK_ICD_FILENAMES/VK_DRIVER_FILES in elevated
+          # processes (loader security feature). Register the ICD in the HKLM
+          # registry instead — the discovery path elevation does not disable.
+          # The env vars are still set below for any non-elevated child.
+          ICD_WIN=$(cygpath -w "$ICD")
+          MSYS_NO_PATHCONV=1 reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' \
+            /v "$ICD_WIN" /t REG_DWORD /d 0 /f
+
+          echo "Using lavapipe ICD: $ICD_WIN"
+          echo "VK_ICD_FILENAMES=$ICD_WIN" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$ICD_WIN" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Show Vulkan device seen by the extension
+        env:
+          # Loader-internal tracing: if no device shows up, this prints WHY
+          # (which manifests were found, why an ICD was skipped, etc.).
+          VK_LOADER_DEBUG: error,warn,driver
+        run: |
+          cd pycanha-project/pycanha-core-python
+          python -c "
+          import sys
+          import pycanha_core as pcc
+          rad = pcc.radiative
+          ok = rad.is_available()
+          print('is_available:', ok)
+          for d in rad.enumerate_devices():
+              print(f'  device {d.index}: {d.name} ray_tracing={d.ray_tracing}')
+          if not ok:
+              sys.exit('::error::lavapipe not visible to the extension - check the install step')
+          "
         shell: bash
 
       - name: Run tests

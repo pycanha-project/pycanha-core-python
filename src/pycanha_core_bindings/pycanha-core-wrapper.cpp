@@ -20,6 +20,7 @@
 #include "bindings/gmm/transformations.hpp"
 #include "bindings/gmm/trimesh.hpp"
 #include "bindings/parameters/parameters.hpp"
+#include "bindings/radiative/radiative.hpp"
 #include "bindings/solvers/solvers.hpp"
 #include "bindings/thermaldata/thermaldata.hpp"
 #include "bindings/tmm/couplings.hpp"
@@ -107,6 +108,10 @@ NB_MODULE(pycanha_core, m) {
 
   nb::module_ solvers_submodule = m.def_submodule("solvers", "Thermal solvers");
   register_solvers(solvers_submodule);
+
+  nb::module_ radiative_submodule =
+      m.def_submodule("radiative", "GPU-raytraced radiative engine");
+  pycanha::bindings::radiative::register_radiative(radiative_submodule);
 
   // Re-export commonly used enums at the package root for convenience.
   if (nb::hasattr(tmm_submodule, "NodeType")) {

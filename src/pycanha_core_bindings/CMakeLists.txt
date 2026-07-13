@@ -7,6 +7,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Emit compile_commands.json so editors / clangd can resolve nanobind, Eigen and
+# pycanha-core headers (the bindings *.hpp otherwise flood with unresolved-include
+# errors in the IDE even though the build is clean).
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_package(nanobind CONFIG REQUIRED)
 find_package(pycanha-core CONFIG REQUIRED)
@@ -86,6 +91,14 @@ else()
         pycanha_core_solvers_stub
         MODULE pycanha_core.solvers
         OUTPUT "${STUB_DIR}/solvers.pyi"
+        PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+        DEPENDS pycanha_core
+    )
+
+    nanobind_add_stub(
+        pycanha_core_radiative_stub
+        MODULE pycanha_core.radiative
+        OUTPUT "${STUB_DIR}/radiative.pyi"
         PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
         DEPENDS pycanha_core
     )

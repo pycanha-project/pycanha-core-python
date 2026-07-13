@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <initializer_list>
 #include <memory>
 #include <string>
 
@@ -53,6 +55,47 @@ struct TransientSolverView : pycanha::TransientSolver {
     return s.*ptr;
   }
 };
+
+// CallbackRegistry stores Python callables inside C++ std::function members,
+// holding strong references that Python's cyclic garbage collector cannot
+// see. A callback that refers back to the registry (or its model) creates an
+// uncollectable cycle that would leak until interpreter shutdown. These GC
+// hooks expose (tp_traverse) and release (tp_clear) those hidden references
+// so such cycles are collected normally.
+inline int callback_registry_tp_traverse(PyObject *self, visitproc visit,
+                                         void *arg) {
+  Py_VISIT(Py_TYPE(self));
+  if (!nb::inst_ready(self)) {
+    return 0;
+  }
+  auto *registry = nb::inst_ptr<pycanha::CallbackRegistry>(self);
+  using FunctionCaster = nb::detail::type_caster<
+      std::function<void(pycanha::CallbackContext &)>>;
+  for (const std::function<void(pycanha::CallbackContext &)> *slot :
+       {&registry->solver_loop, &registry->time_change,
+        &registry->after_timestep}) {
+    if (const auto *wrapper = slot->target<FunctionCaster::pyfunc_wrapper_t>()) {
+      Py_VISIT(wrapper->f);
+    }
+  }
+  return 0;
+}
+
+inline int callback_registry_tp_clear(PyObject *self) {
+  if (!nb::inst_ready(self)) {
+    return 0;
+  }
+  auto *registry = nb::inst_ptr<pycanha::CallbackRegistry>(self);
+  registry->solver_loop = {};
+  registry->time_change = {};
+  registry->after_timestep = {};
+  return 0;
+}
+
+inline PyType_Slot callback_registry_gc_slots[] = {
+    {Py_tp_traverse, reinterpret_cast<void *>(callback_registry_tp_traverse)},
+    {Py_tp_clear, reinterpret_cast<void *>(callback_registry_tp_clear)},
+    {0, nullptr}};
 
 inline void register_solvers(nb::module_ &m) {
      using pycanha::CallbackContext;
@@ -276,7 +319,8 @@ inline void register_solvers(nb::module_ &m) {
                          "Shared pointer to the associated ThermalMathematicalModel.");
 
      nb::class_<CallbackRegistry>(m, "CallbackRegistry",
-                                                                            "Model-owned callback registry for solver execution hooks.")
+                                                                            "Model-owned callback registry for solver execution hooks.",
+                                                                            nb::type_slots(callback_registry_gc_slots))
                .def_rw("active", &CallbackRegistry::active,
                                    "Master switch enabling or disabling callback execution.")
                .def_rw("solver_loop", &CallbackRegistry::solver_loop,
