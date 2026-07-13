@@ -389,6 +389,58 @@ jobs:
             --config-settings=cmake.define.PYCANHA_PREGENERATED_STUBS_DIR="$STUBS_DIR"
         shell: bash
 
+      # Software Vulkan (lavapipe) so the radiative tests run their view-factor
+      # end-to-end on the GPU-less runner — the Windows twin of the ubuntu job's
+      # lavapipe step. mesa-dist-win supplies the lavapipe ICD (Mesa 26.0.x, the
+      # same generation verified on Linux); volk dlopens vulkan-1.dll at runtime
+      # and the runner has no GPU driver, so the Khronos loader comes from conan
+      # (vulkan-loader, same version family as core's vulkan-headers/volk pins).
+      # REQUIRED: the radiative tests only skip on macOS, so a missing/broken
+      # lavapipe here is a real test failure.
+      - name: Install lavapipe (software Vulkan)
+        run: |
+          MESA_VERSION=26.0.8
+          MESA_SHA256=a438c26c2752726916e455f9ad121f8a7e3cfecf8626251abf8e5b3e129d8497
+          curl -sSL -o mesa3d.7z \
+            "https://github.com/pal1000/mesa-dist-win/releases/download/${MESA_VERSION}/mesa3d-${MESA_VERSION}-release-msvc.7z"
+          echo "${MESA_SHA256}  mesa3d.7z" | sha256sum -c -
+          7z x mesa3d.7z -omesa3d -y > /dev/null
+          ICD="$(pwd)/mesa3d/x64/lvp_icd.x86_64.json"
+          if [ ! -f "$ICD" ]; then
+            echo "::error::lavapipe ICD not found in mesa-dist-win archive"
+            ls mesa3d/x64 || true
+            exit 1
+          fi
+
+          PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
+          conan install --requires=vulkan-loader/1.4.350.0 --build=missing \
+            -pr:h="$PROFILE" -pr:b="$PROFILE" \
+            --deployer=direct_deploy --deployer-folder=vulkan-loader
+          LOADER_DIR="$(pwd)/vulkan-loader/direct_deploy/vulkan-loader/bin"
+          if [ ! -f "$LOADER_DIR/vulkan-1.dll" ]; then
+            echo "::error::vulkan-1.dll not produced by conan vulkan-loader"
+            find vulkan-loader -name '*.dll' || true
+            exit 1
+          fi
+
+          echo "Using lavapipe ICD: $ICD"
+          echo "VK_ICD_FILENAMES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$(cygpath -w "$ICD")" >> "$GITHUB_ENV"
+          echo "$(cygpath -w "$LOADER_DIR")" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Show Vulkan device seen by the extension
+        run: |
+          cd pycanha-project/pycanha-core-python
+          python -c "
+          import pycanha_core as pcc
+          rad = pcc.radiative
+          print('is_available:', rad.is_available())
+          for d in rad.enumerate_devices():
+              print(f'  device {d.index}: {d.name} ray_tracing={d.ray_tracing}')
+          "
+        shell: bash
+
       - name: Run tests
         run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash

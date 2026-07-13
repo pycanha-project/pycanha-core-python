@@ -25,10 +25,14 @@ hdf5/*: ninja/[>=1.11]
 # check) has the same CMake-<4 cap, so it can't emit the VS2026 generator
 # either. Build it with Ninja too; scoped to spirv-tools only.
 spirv-tools/*: ninja/[>=1.11]
+# vulkan-loader (built standalone by the CI to provide vulkan-1.dll for the
+# lavapipe test run on the GPU-less Windows runner) has the same CMake-<4 cap.
+vulkan-loader/*: ninja/[>=1.11]
 
 [conf]
 hdf5/*:tools.cmake.cmaketoolchain:generator=Ninja
 spirv-tools/*:tools.cmake.cmaketoolchain:generator=Ninja
+vulkan-loader/*:tools.cmake.cmaketoolchain:generator=Ninja
 
 {% elif platform.system()=="Darwin" %}
 # macOS with Apple Clang. apple-clang 21 is the default clang on the macos-26
