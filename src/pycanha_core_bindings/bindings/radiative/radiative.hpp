@@ -4,6 +4,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -23,10 +24,20 @@ namespace gmm = pycanha::gmm;
 
 // 1:1 nanobind exposure of pycanha::radiative. Zero policy: orbits, environments
 // and the apply_to machinery live in the pure-Python pycanha.radiative layer.
-// Only the surface actually implemented by core 0.16 is exposed (the geometric
-// view-factor path plus the CPU face->node aggregation services); the exchange /
-// solar kernels and Gebhart services arrive additively in later releases.
+// Core 0.17 completes the kernel set, so the whole public C++ surface is exposed
+// here: the geometric view-factor, multi-bounce exchange and solar paths, the
+// CPU Gebhart and face->node aggregation services, and the memory-sizing
+// mechanism the Python layer's accumulator policy is built on.
 inline void register_radiative(nb::module_& m) {
+  // ---- virtual bucket columns ---------------------------------------------
+  // Every matrix result appends these columns after the num_face_slots real
+  // ones, so each parcel of emitted energy has an explicit destination and full
+  // rows close exactly (a vf row sums to 1; an exchange row conserves energy).
+  m.attr("num_virtual_columns") = rad::num_virtual_columns;
+  m.attr("space_column_offset") = rad::space_column_offset;
+  m.attr("inactive_column_offset") = rad::inactive_column_offset;
+  m.attr("lost_column_offset") = rad::lost_column_offset;
+
   // ---- enums --------------------------------------------------------------
   nb::enum_<rad::PartKind>(m, "PartKind",
                            "Role of a part inside the raytraced scene.")
@@ -141,6 +152,26 @@ inline void register_radiative(nb::module_& m) {
            [](const rad::MaterialTable& t) { return t.num_face_slots(); },
            "Number of face slots (rows of `face_material`).");
 
+  // One solar snapshot. Everything above a single snapshot (orbits, dates,
+  // eclipse sequencing) belongs to the pure-Python layer.
+  nb::class_<rad::SolarState>(m, "SolarState",
+                              "One solar-illumination snapshot: a parallel "
+                              "sun (direction + irradiance).")
+      .def(nb::init<>(), "Create a default (zero) solar state.")
+      .def(
+          "__init__",
+          [](rad::SolarState* self, Vector3D direction, double irradiance) {
+            new (self) rad::SolarState{std::move(direction), irradiance};
+          },
+          "direction"_a, "irradiance"_a = 0.0,
+          "Build a sun snapshot from the world-frame sun->spacecraft "
+          "direction (normalized internally) and the irradiance in W/m^2.")
+      .def_rw("direction", &rad::SolarState::direction,
+              "World-frame direction pointing sun -> spacecraft.")
+      .def_rw("irradiance", &rad::SolarState::irradiance,
+              "W/m^2 at the spacecraft (the solar constant for this "
+              "snapshot).");
+
   // ---- settings -----------------------------------------------------------
   nb::class_<rad::TraceSettings>(
       m, "TraceSettings",
@@ -151,13 +182,13 @@ inline void register_radiative(nb::module_& m) {
           "__init__",
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
-             std::uint32_t max_bounces) {
+             std::uint32_t max_bounces, bool normal_emission) {
             new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces};
+                                          max_bounces, normal_emission};
           },
           "rays_per_face"_a = 10'000, "seed"_a = 0,
           "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "Build trace settings.")
+          "normal_emission"_a = false, "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
@@ -165,7 +196,10 @@ inline void register_radiative(nb::module_& m) {
       .def_rw("energy_threshold", &rad::TraceSettings::energy_threshold,
               "MCRT ray-kill energy cutoff (exchange kernels).")
       .def_rw("max_bounces", &rad::TraceSettings::max_bounces,
-              "Hard safety bound on the bounce loop.");
+              "Hard safety bound on the bounce loop.")
+      .def_rw("normal_emission", &rad::TraceSettings::normal_emission,
+              "Emit along the face normal instead of the cosine-weighted "
+              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).");
 
   nb::class_<rad::AccumConfig>(
       m, "AccumConfig",
@@ -184,7 +218,9 @@ inline void register_radiative(nb::module_& m) {
       .def_rw("tile_rows", &rad::AccumConfig::tile_rows,
               "Tiled only; row-block height (0 is invalid, must be set).")
       .def_rw("sparse_threshold", &rad::AccumConfig::sparse_threshold,
-              "Drop readback entries <= threshold (0 keeps any nonzero).");
+              "Drop result entries with |value| <= threshold (0 keeps any "
+              "nonzero). Row sums and statistics are computed BEFORE "
+              "thresholding, so closure/conservation accounting stays exact.");
 
   // ---- results ------------------------------------------------------------
   nb::class_<rad::TraceStats>(
@@ -200,7 +236,9 @@ inline void register_radiative(nb::module_& m) {
       .def_ro("reciprocity_residual", &rad::TraceStats::reciprocity_residual,
               "VF only: max |Ai*Fij - Aj*Fji| (normalized).")
       .def_ro("lost_energy_fraction", &rad::TraceStats::lost_energy_fraction,
-              "Exchange only: energy killed below the threshold.")
+              "Exchange only: the mathematical residue (Russian-roulette "
+              "balance, max_bounces cutoff). Absorption at inactive faces is "
+              "its own bucket column, not part of this.")
       .def_prop_ro(
           "gpu_time_ns",
           [](const rad::TraceStats& s) {
@@ -263,19 +301,83 @@ inline void register_radiative(nb::module_& m) {
           "vf",
           [](const rad::VfResult& r) -> const rad::SparseF64& { return r.vf; },
           nb::rv_policy::reference_internal,
-          "View-factor matrix (SparseF64); 1 - row_sum is the VF to space.")
+          "View-factor matrix (SparseF64), Nf x (Nf + num_virtual_columns); "
+          "the view to space is the space bucket column, not a row deficit.")
       .def_prop_ro(
           "row_sums",
           [](const rad::VfResult& r) -> Eigen::Ref<const Eigen::VectorXd> {
             return r.row_sums;
           },
-          nb::rv_policy::reference_internal, "Per-row VF sums (Nf,).")
+          nb::rv_policy::reference_internal,
+          "Per-row sums over ALL columns (Nf,) — exactly 1 for rows that "
+          "emitted, i.e. the closure check.")
       .def_prop_ro(
           "stats",
           [](const rad::VfResult& r) -> const rad::TraceStats& {
             return r.stats;
           },
           nb::rv_policy::reference_internal, "TraceStats for this result.");
+
+  nb::class_<rad::ExchangeResult>(
+      m, "ExchangeResult",
+      "Multi-bounce MCRT exchange-factor result for one radiation band.")
+      .def_ro("band", &rad::ExchangeResult::band,
+              "The band the factors were traced for.")
+      .def_prop_ro(
+          "factors",
+          [](const rad::ExchangeResult& r) -> const rad::SparseF64& {
+            return r.factors;
+          },
+          nb::rv_policy::reference_internal,
+          "Exchange-factor matrix (SparseF64), Nf x (Nf + "
+          "num_virtual_columns); the full row conserves energy exactly.")
+      .def_prop_ro(
+          "stats",
+          [](const rad::ExchangeResult& r) -> const rad::TraceStats& {
+            return r.stats;
+          },
+          nb::rv_policy::reference_internal, "TraceStats for this result.");
+
+  nb::class_<rad::SolarResult>(
+      m, "SolarResult",
+      "Per-face-slot absorbed solar power in WATTS (extensive): node mapping "
+      "is a plain per-node sum, flux is watts / face area.")
+      .def_prop_ro(
+          "direct",
+          [](const rad::SolarResult& r) -> Eigen::Ref<const Eigen::VectorXd> {
+            return r.direct;
+          },
+          nb::rv_policy::reference_internal,
+          "(Nf,) W absorbed from direct illumination.")
+      .def_prop_ro(
+          "total",
+          [](const rad::SolarResult& r) -> Eigen::Ref<const Eigen::VectorXd> {
+            return r.total;
+          },
+          nb::rv_policy::reference_internal,
+          "(Nf,) W absorbed including reflections.")
+      .def_prop_ro(
+          "stats",
+          [](const rad::SolarResult& r) -> const rad::TraceStats& {
+            return r.stats;
+          },
+          nb::rv_policy::reference_internal, "TraceStats for this result.");
+
+  // ---- memory sizing ------------------------------------------------------
+  nb::class_<rad::MemoryEstimate>(
+      m, "MemoryEstimate",
+      "Exact byte requirements of an accumulator configuration; the Python "
+      "layer weighs these against Device.memory_budget() to pick a layout.")
+      .def_ro("gpu_bytes_dense", &rad::MemoryEstimate::gpu_bytes_dense,
+              "Full Nf x (Nf + virtual columns) accumulator, sized for the u64 "
+              "exchange cells (vf counting cells take half).")
+      .def_ro("gpu_bytes_per_tile_row",
+              &rad::MemoryEstimate::gpu_bytes_per_tile_row,
+              "One row of the tiled block scratch.")
+      .def_ro("gpu_bytes_scene", &rad::MemoryEstimate::gpu_bytes_scene,
+              "Resident scene cost: geometry, acceleration structures, tables.")
+      .def_ro("host_bytes_block", &rad::MemoryEstimate::host_bytes_block,
+              "One readback block for the configured layout.");
 
   // ---- scene + accumulator ------------------------------------------------
   nb::class_<rad::RadiativeScene>(
@@ -310,6 +412,36 @@ inline void register_radiative(nb::module_& m) {
           "Trace settings.rays_per_face rays per emitting face and ADD the "
           "first-hit counts into `acc`. Empty `emitters` => all active faces "
           "emit. Releases the GIL while the GPU works.")
+      .def(
+          "accumulate_exchange",
+          [](rad::RadiativeScene& self, rad::ExchangeAccumulator& acc,
+             const rad::TraceSettings& settings,
+             const std::vector<std::uint32_t>& emitters) {
+            self.accumulate_exchange(acc, settings,
+                                     std::span<const std::uint32_t>(emitters));
+          },
+          "acc"_a, "settings"_a, "emitters"_a = std::vector<std::uint32_t>{},
+          nb::call_guard<nb::gil_scoped_release>(),
+          "Multi-bounce MCRT exchange factors for the accumulator's band "
+          "(fixed at accumulator construction), ADDED into `acc`. Same "
+          "emitter semantics as accumulate_vf. Releases the GIL.")
+      .def(
+          "accumulate_solar",
+          [](rad::RadiativeScene& self, const rad::SolarState& sun,
+             rad::SolarAccumulator& acc, const rad::TraceSettings& settings) {
+            self.accumulate_solar(sun, acc, settings);
+          },
+          "sun"_a, "acc"_a, "settings"_a,
+          nb::call_guard<nb::gil_scoped_release>(),
+          "Direct + reflected solar absorption for one sun snapshot, ADDED "
+          "into `acc`. Every batch in one accumulator must use the same "
+          "SolarState (only the seed varies); a different sun needs a fresh "
+          "accumulator. Releases the GIL.")
+      .def("update_materials", &rad::RadiativeScene::update_materials,
+           "materials"_a,
+           "Replace the optical properties WITHOUT rebuilding geometry "
+           "(BOL/EOL swaps, sensitivity overrides): the new table must keep "
+           "the same face_material mapping and activity.")
       .def("num_face_slots", &rad::RadiativeScene::num_face_slots,
            "Total face slots (rows/cols of every result matrix).")
       .def("materials", &rad::RadiativeScene::materials,
@@ -342,6 +474,81 @@ inline void register_radiative(nb::module_& m) {
       .def("result", &rad::VfAccumulator::result,
            "Read back + normalize into a VfResult (callable repeatedly).");
 
+  nb::class_<rad::ExchangeAccumulator>(
+      m, "ExchangeAccumulator",
+      "Owns the GPU fixed-point energy cells for exchange factors; the band "
+      "is fixed at construction (mixing bands in one matrix is meaningless).")
+      .def(
+          "__init__",
+          [](rad::ExchangeAccumulator* self, const rad::RadiativeScene& scene,
+             rad::Band band, rad::AccumConfig config) {
+            new (self) rad::ExchangeAccumulator(scene, band, config);
+          },
+          "scene"_a, "band"_a, "config"_a = rad::AccumConfig{},
+          nb::keep_alive<1, 2>(),
+          "Allocate an accumulator for `scene` in `band` (Dense by default).")
+      .def("reset", &rad::ExchangeAccumulator::reset,
+           "Clear all accumulated energy.")
+      .def("result", &rad::ExchangeAccumulator::result,
+           "Read back + normalize into an ExchangeResult (callable "
+           "repeatedly).")
+      .def("conservation_error", &rad::ExchangeAccumulator::conservation_error,
+           "Max over rows of |full row sum - rays * scale| in raw fixed-point "
+           "units. Zero by construction, so a nonzero value means a broken "
+           "kernel, not Monte-Carlo noise.");
+
+  nb::class_<rad::SolarAccumulator>(
+      m, "SolarAccumulator",
+      "Owns the per-face-slot direct/total solar energy vectors (the solar "
+      "kernel is O(Nf): no matrix, no layout choice).")
+      .def(
+          "__init__",
+          [](rad::SolarAccumulator* self, const rad::RadiativeScene& scene) {
+            new (self) rad::SolarAccumulator(scene);
+          },
+          "scene"_a, nb::keep_alive<1, 2>(),
+          "Allocate a solar accumulator for `scene`.")
+      .def("reset", &rad::SolarAccumulator::reset,
+           "Clear all accumulated energy.")
+      .def("result", &rad::SolarAccumulator::result,
+           "Read back into a SolarResult in watts (callable repeatedly).");
+
+  m.def("estimate_memory", &rad::estimate_memory, "scene"_a,
+        "config"_a = rad::AccumConfig{},
+        "Byte requirements of `config` on `scene`, so a run can fail fast "
+        "with a clear message instead of exhausting device memory mid-trace.");
+
+  // ---- CPU Gebhart services ----------------------------------------------
+  m.def(
+      "gebhart_factors", &rad::gebhart_factors, "vf"_a, "emissivity"_a,
+      "space_fraction_policy"_a = 1.0,
+      "Face-level Gebhart factors B = (I - F R)^-1 F E from a geometric VF "
+      "matrix — the diffuse-gray fast path, no re-tracing and no GPU. The "
+      "dense solve is limited to ~20k face slots; use gebhart_node_factors "
+      "above that. `space_fraction_policy` decides what a row deficit means: "
+      "1.0 a real view to space, 0.0 renormalize the row (closed enclosure).");
+
+  m.def(
+      "gebhart_node_factors",
+      [](const rad::SparseF64& vf, const Eigen::VectorXd& emissivity,
+         const Eigen::VectorXi& node_numbers, const Eigen::VectorXd& face_areas,
+         double space_fraction_policy) {
+        return rad::gebhart_node_factors(
+            vf, emissivity,
+            std::span<const NodeNum>(node_numbers.data(),
+                                     static_cast<std::size_t>(
+                                         node_numbers.size())),
+            std::span<const double>(face_areas.data(),
+                                    static_cast<std::size_t>(
+                                        face_areas.size())),
+            space_fraction_policy);
+      },
+      "vf"_a, "emissivity"_a, "node_numbers"_a, "face_areas"_a,
+      "space_fraction_policy"_a = 1.0,
+      "Node-level Gebhart GR matrix (m^2) for ANY model size: one sparse "
+      "factorization plus one solve per node instead of a dense inverse. "
+      "Rows/cols are indexed by position in aggregate_nodes(node_numbers).");
+
   // ---- CPU aggregation services ------------------------------------------
   m.def(
       "aggregate_nodes",
@@ -373,7 +580,33 @@ inline void register_radiative(nb::module_& m) {
                                         face_areas.size())));
       },
       "face_matrix"_a, "node_numbers"_a, "face_areas"_a,
-      "Area-weighted face->node reduction of a face matrix (extensive, m^2).");
+      "Area-weighted face->node reduction of a face matrix (extensive, m^2). "
+      "The virtual bucket columns are DROPPED (they have no column label); "
+      "use the row/column overload to map a bucket to a real node.");
+
+  m.def(
+      "aggregate_matrix",
+      [](const rad::SparseF64& face_matrix,
+         const Eigen::VectorXi& row_node_numbers,
+         const Eigen::VectorXi& col_node_numbers,
+         const Eigen::VectorXd& face_areas) {
+        return rad::aggregate_matrix(
+            face_matrix,
+            std::span<const NodeNum>(row_node_numbers.data(),
+                                     static_cast<std::size_t>(
+                                         row_node_numbers.size())),
+            std::span<const NodeNum>(col_node_numbers.data(),
+                                     static_cast<std::size_t>(
+                                         col_node_numbers.size())),
+            std::span<const double>(face_areas.data(),
+                                    static_cast<std::size_t>(
+                                        face_areas.size())));
+      },
+      "face_matrix"_a, "row_node_numbers"_a, "col_node_numbers"_a,
+      "face_areas"_a,
+      "Rows and columns labeled independently: `col_node_numbers` has one "
+      "entry per matrix COLUMN including the virtual buckets, so the space "
+      "bucket can be assigned the space node (or NO_NODE to drop it).");
 
   m.def(
       "aggregate_flux",

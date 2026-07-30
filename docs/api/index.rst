@@ -12,3 +12,4 @@ This section documents the public API exposed by the released
    pycanha_core.parameters
    pycanha_core.solvers
    pycanha_core.gmm
+   pycanha_core.radiative
