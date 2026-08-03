@@ -141,6 +141,8 @@ _EXTENSION.__dict__.setdefault(
         "tmm",
         "parameters",
         "solvers",
+        "radiative",
+        "conduction",
         "NodeType",
         "InterpolationMethod",
         "ExtrapolationMethod",

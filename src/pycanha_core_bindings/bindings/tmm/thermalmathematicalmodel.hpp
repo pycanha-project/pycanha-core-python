@@ -14,6 +14,7 @@
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
 
+#include "pycanha-core/conduction/options.hpp"
 #include "pycanha-core/globals.hpp"
 #include "pycanha-core/io/esatan.hpp"
 #include "pycanha-core/parameters/formulas.hpp"
@@ -213,7 +214,13 @@ inline void register_thermal_model(nb::module_ &m) {
             return self.callbacks();
           },
           nb::rv_policy::reference_internal,
-          "Reference to the owned CallbackRegistry.");
+          "Reference to the owned CallbackRegistry.")
+      .def("build_tmm_from_gmm", &ThermalModel::build_tmm_from_gmm,
+           "options"_a = pycanha::conduction::TmmBuildOptions{},
+           "Populate the tmm from the gmm: one node per conductively active "
+           "face slot that carries a node number, plus the in-plane and "
+           "through-thickness conductors those slots imply. Requires an empty "
+           "tmm; returns a TmmBuildReport. See pycanha_core.conduction.");
 }
 
 inline void register_thermal_mathematical_model(nb::module_ &m) {

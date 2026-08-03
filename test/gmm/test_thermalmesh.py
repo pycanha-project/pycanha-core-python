@@ -28,12 +28,43 @@ class TestThermalMesh:
 
     def test_per_side_properties(self):
         mesh = gmm.ThermalMesh()
-        mesh.side1_activity = False
         mesh.side2_thick = 1.0e-3
         mesh.side1_color = gmm.Color(255, 0, 0)
-        assert mesh.side1_activity is False
         assert mesh.side2_thick == pytest.approx(1.0e-3)
         assert mesh.side1_color.red == 255
+
+    def test_activity_defaults_to_both_in_both_physics(self):
+        mesh = gmm.ThermalMesh()
+        assert mesh.radiative_active_side == gmm.ActiveSide.BOTH
+        assert mesh.conductive_active_side == gmm.ActiveSide.BOTH
+        assert mesh.is_radiative_active(1) is True
+        assert mesh.is_conductive_active(2) is True
+        assert mesh.is_side_active(1) is True
+
+    def test_activity_selectors_are_independent(self):
+        """The two ESATAN states a single selector could not express."""
+        mesh = gmm.ThermalMesh()
+        mesh.radiative_active_side = gmm.ActiveSide.SIDE1
+        mesh.conductive_active_side = gmm.ActiveSide.SIDE2
+
+        assert mesh.is_radiative_active(1) is True
+        assert mesh.is_conductive_active(1) is False
+        assert mesh.is_radiative_active(2) is False
+        assert mesh.is_conductive_active(2) is True
+        assert mesh.is_side_active(1) is True
+        assert mesh.is_side_active(2) is True
+
+    def test_activity_none_deactivates_both_sides(self):
+        mesh = gmm.ThermalMesh()
+        mesh.radiative_active_side = gmm.ActiveSide.NONE
+        mesh.conductive_active_side = gmm.ActiveSide.NONE
+        assert mesh.is_side_active(1) is False
+        assert mesh.is_side_active(2) is False
+
+    def test_activity_rejects_an_invalid_side(self):
+        mesh = gmm.ThermalMesh()
+        with pytest.raises(ValueError):
+            mesh.is_radiative_active(0)
 
     def test_materials_nullable_and_shared(self):
         mesh = gmm.ThermalMesh()

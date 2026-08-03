@@ -294,8 +294,7 @@ class TestGebhart:
 def _build_panel_model():
     """A single meshed rectangle with an optical material and node numbers."""
     tmesh = gmm.ThermalMesh()
-    tmesh.side1_activity = True
-    tmesh.side2_activity = True
+    tmesh.radiative_active_side = gmm.ActiveSide.BOTH
     tmesh.side1_optical = gmm.OpticalMaterial("white", 0.9, 0.2)
     tmesh.side2_optical = gmm.OpticalMaterial("white", 0.9, 0.2)
     tmesh.node1_start = 100

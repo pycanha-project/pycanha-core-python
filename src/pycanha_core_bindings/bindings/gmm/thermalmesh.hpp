@@ -12,10 +12,24 @@ namespace nb = nanobind;
 using namespace nanobind::literals;
 using namespace pycanha::gmm;
 
-// Per-primitive thermal discretization: the two UV cut vectors plus per-side
-// (front = side1, back = side2) activity, thickness, color, bulk/optical
-// material, and the four int32 fields driving face -> tmm-node assignment.
+// Per-primitive thermal discretization: the two UV cut vectors, the two
+// per-physics active-side selectors, plus per-side (front = side1, back =
+// side2) thickness, color, bulk/optical material, and the four int32 fields
+// driving face -> tmm-node assignment.
 // Validation is enforced in the C++ setters (invalid state throws).
+
+inline void ActiveSide_b(nb::module_& m) {
+  nb::enum_<ActiveSide>(
+      m, "ActiveSide",
+      "Which sides of a shell take part in one physics. The four states are "
+      "STEP-TAS's mgm_active_side_type; a ThermalMesh carries one selector "
+      "for radiation and one for conduction, which together span ESATAN's "
+      "Active / Inactive / Radiative / Conductive activity values.")
+      .value("NONE", ActiveSide::None, "Neither side.")
+      .value("SIDE1", ActiveSide::Side1, "Front side only.")
+      .value("SIDE2", ActiveSide::Side2, "Back side only.")
+      .value("BOTH", ActiveSide::Both, "Both sides.");
+}
 
 inline void ThermalMesh_b(nb::module_& m) {
   nb::class_<ThermalMesh>(
@@ -52,11 +66,23 @@ inline void ThermalMesh_b(nb::module_& m) {
            "Whether the mesh definition is valid.")
       .def_prop_ro("num_pair_faces", &ThermalMesh::get_number_of_pair_faces,
                    "(len(dir1_mesh) - 1) * (len(dir2_mesh) - 1) face pairs.")
-      // --- Per-side activity ---
-      .def_prop_rw("side1_activity", &ThermalMesh::get_side1_activity,
-                   &ThermalMesh::set_side1_activity, "Front-side activity.")
-      .def_prop_rw("side2_activity", &ThermalMesh::get_side2_activity,
-                   &ThermalMesh::set_side2_activity, "Back-side activity.")
+      // --- Activity, one selector per physics ---
+      .def_prop_rw("radiative_active_side",
+                   &ThermalMesh::get_radiative_active_side,
+                   &ThermalMesh::set_radiative_active_side,
+                   "Sides taking part in the radiative path (view factors, "
+                   "optical properties).")
+      .def_prop_rw("conductive_active_side",
+                   &ThermalMesh::get_conductive_active_side,
+                   &ThermalMesh::set_conductive_active_side,
+                   "Sides taking part in conduction (capacitance, conductor "
+                   "generation). Independent of the radiative selector.")
+      .def("is_radiative_active", &ThermalMesh::is_radiative_active, "side"_a,
+           "Whether side 1 or 2 takes part in the radiative path.")
+      .def("is_conductive_active", &ThermalMesh::is_conductive_active, "side"_a,
+           "Whether side 1 or 2 takes part in conduction.")
+      .def("is_side_active", &ThermalMesh::is_side_active, "side"_a,
+           "Whether side 1 or 2 takes part in either physics.")
       // --- Per-side thickness ---
       .def_prop_rw("side1_thick", &ThermalMesh::get_side1_thick,
                    &ThermalMesh::set_side1_thick, "Front-side thickness [m].")

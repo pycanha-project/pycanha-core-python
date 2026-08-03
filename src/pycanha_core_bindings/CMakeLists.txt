@@ -103,6 +103,14 @@ else()
         DEPENDS pycanha_core
     )
 
+    nanobind_add_stub(
+        pycanha_core_conduction_stub
+        MODULE pycanha_core.conduction
+        OUTPUT "${STUB_DIR}/conduction.pyi"
+        PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+        DEPENDS pycanha_core
+    )
+
     install(
         DIRECTORY "${STUB_DIR}/"
         DESTINATION pycanha_core

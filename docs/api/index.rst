@@ -13,3 +13,4 @@ This section documents the public API exposed by the released
    pycanha_core.solvers
    pycanha_core.gmm
    pycanha_core.radiative
+   pycanha_core.conduction

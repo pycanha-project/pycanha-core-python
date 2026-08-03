@@ -10,6 +10,7 @@
 
 #include <vector>
 
+#include "bindings/conduction/conduction.hpp"
 #include "bindings/gmm/geometry.hpp"
 #include "bindings/gmm/geometrymodel.hpp"
 #include "bindings/gmm/materials.hpp"
@@ -65,7 +66,9 @@ NB_MODULE(pycanha_core, m) {
   BulkMaterial_b(gmm_submodule);
   OpticalMaterial_b(gmm_submodule);
 
-  // Meshes and transforms.
+  // Meshes and transforms. The active-side enum must exist before the
+  // ThermalMesh properties that expose it.
+  ActiveSide_b(gmm_submodule);
   ThermalMesh_b(gmm_submodule);
   CoordinateTransformation_b(gmm_submodule);
   TriMeshD_b(gmm_submodule);
@@ -103,6 +106,13 @@ NB_MODULE(pycanha_core, m) {
   register_parameters(parameters_submodule);
   register_entities(parameters_submodule);
   register_formulas(parameters_submodule);
+
+  // Before ThermalModel: its build_tmm_from_gmm has a TmmBuildOptions default
+  // argument, and nanobind converts a default value to Python when the method
+  // is defined, not when it is called.
+  nb::module_ conduction_submodule =
+      m.def_submodule("conduction", "gmm -> tmm conduction builder");
+  pycanha::bindings::conduction::register_conduction(conduction_submodule);
 
   register_thermal_mathematical_model(tmm_submodule);
 

@@ -59,6 +59,9 @@ Primitives
 Meshes
 ------
 
+.. autoclass:: ActiveSide
+   :members:
+
 .. autoclass:: ThermalMesh
    :members:
    :special-members: __init__
