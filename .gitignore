@@ -1,6 +1,8 @@
 .venv
 .vscode
 build
+logs
+pregenerated-stubs
 CMakeUserPresets.json
 __pycache__
 dist

@@ -1,10 +1,10 @@
-:mod:`pycanha_core.gmm` — Geometry and Mesh Classes
+:mod:`pycanha_core.gmm` — Geometry and mesh classes
 ===================================================
 
 .. currentmodule:: pycanha_core.gmm
 
-The ``gmm`` submodule exposes the geometric primitives, meshes, and scene graph
-types used by the thermal model.
+The primitives of the Geometrical Mathematical Model (GMM), their thermal mesh,
+the coordinate transformations and the hierarchy that holds them.
 
 Primitives
 ----------

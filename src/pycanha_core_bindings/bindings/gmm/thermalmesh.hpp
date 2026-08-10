@@ -113,13 +113,13 @@ inline void ThermalMesh_b(nb::module_& m) {
                    "Front-side base node number (-1 = no node).")
       .def_prop_rw("node1_step", &ThermalMesh::get_node1_step,
                    &ThermalMesh::set_node1_step,
-                   "Front-side per-cell node increment.")
+                   "Front-side per-face node increment.")
       .def_prop_rw("node2_start", &ThermalMesh::get_node2_start,
                    &ThermalMesh::set_node2_start,
                    "Back-side base node number (-1 = no node).")
       .def_prop_rw("node2_step", &ThermalMesh::get_node2_step,
                    &ThermalMesh::set_node2_step,
-                   "Back-side per-cell node increment.")
+                   "Back-side per-face node increment.")
       .def("node_of", &ThermalMesh::node_of, "i"_a, "j"_a, "side"_a,
-           "Node number for cell (i, j) on side 1 or 2.");
+           "Node number for face (i, j) on side 1 or 2.");
 }

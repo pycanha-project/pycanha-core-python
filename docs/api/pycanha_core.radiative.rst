@@ -1,9 +1,11 @@
-:mod:`pycanha_core.radiative` — GPU-Raytraced Radiative Engine
+:mod:`pycanha_core.radiative` — GPU raytraced radiative engine
 ==============================================================
 
 .. currentmodule:: pycanha_core.radiative
 
-The ``radiative`` submodule is a 1:1 exposure of the C++ radiative engine.
+Device discovery, scene setup, and the view factor, exchange and solar
+accumulators, together with the CPU-side Gebhart and aggregation services. The
+binding is a one to one exposure of the C++ engine.
 
 .. autodata:: num_virtual_columns
 .. autodata:: space_column_offset
@@ -60,6 +62,14 @@ Settings
 .. autoclass:: AccumLayout
    :members:
 
+.. autoclass:: TriangulationMode
+   :members:
+
+.. autoclass:: TriangulationConfig
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
 .. autoclass:: AccumConfig
    :members:
    :special-members: __init__
@@ -91,10 +101,10 @@ Scene and accumulators
 Results
 -------
 
-.. autoclass:: SparseF64
-   :members:
-   :special-members: __init__
-   :exclude-members: __dict__, __weakref__, __module__
+Sparse results are returned as ``scipy.sparse.csr_matrix``, and sparse
+arguments accept the same type. A matrix result holds the upper triangle of the
+symmetric extensive quantity. The virtual bucket columns follow the real face
+columns.
 
 .. autoclass:: TraceStats
    :members:
@@ -129,6 +139,10 @@ Gebhart services (CPU)
 
 Aggregation services (CPU)
 --------------------------
+
+.. autoclass:: AggregateResult
+   :members:
+   :exclude-members: __dict__, __weakref__, __module__
 
 .. autofunction:: aggregate_nodes
 .. autofunction:: aggregate_matrix

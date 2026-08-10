@@ -14,6 +14,7 @@
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/conduction/options.hpp"
 #include "pycanha-core/globals.hpp"
 #include "pycanha-core/io/esatan.hpp"
@@ -216,11 +217,13 @@ inline void register_thermal_model(nb::module_ &m) {
           nb::rv_policy::reference_internal,
           "Reference to the owned CallbackRegistry.")
       .def("build_tmm_from_gmm", &ThermalModel::build_tmm_from_gmm,
-           "options"_a = pycanha::conduction::TmmBuildOptions{},
-           "Populate the tmm from the gmm: one node per conductively active "
-           "face slot that carries a node number, plus the in-plane and "
-           "through-thickness conductors those slots imply. Requires an empty "
-           "tmm; returns a TmmBuildReport. See pycanha_core.conduction.");
+           "options"_a = pycanha::conduction::TmmBuildOptions{}, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+           "Populate the tmm from the gmm: one node per ACTIVE face slot that "
+           "carries a node number - active meaning it takes part in "
+           "conduction, radiation or both - plus the in-plane and "
+           "through-thickness conductors the conductively active ones imply. "
+           "Requires an empty tmm; returns a TmmBuildReport. See "
+           "pycanha_core.conduction.");
 }
 
 inline void register_thermal_mathematical_model(nb::module_ &m) {
@@ -255,7 +258,7 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
       .def(nb::init<ThermalMathematicalModel &>(), "model"_a,
            nb::keep_alive<1, 2>(),
            "Create a reader bound to a ThermalMathematicalModel.")
-      .def("read_tmd", &ESATANReader::read_tmd, "filepath"_a,
+      .def("read_tmd", &ESATANReader::read_tmd, "filepath"_a, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Read an ESATAN TMD file into the associated model.")
       .def_rw("verbose", &ESATANReader::verbose,
               "Enable verbose logging during file reading.");

@@ -1,11 +1,16 @@
 # Installation
 
-## Using `pip`
-Just run `pip install pycanha-core`
+## From PyPI
 
-## Building from source
+```bash
+pip install pycanha-core
+```
 
-Keep `pycanha-core` and `pycanha-core-python` side by side:
+Wheels are published for Python 3.13 and later on Windows, Linux and macOS.
+
+## From source
+
+Check out `pycanha-core` and `pycanha-core-python` side by side:
 
 ```text
 pycanha-project/
@@ -13,9 +18,9 @@ pycanha-project/
 └── pycanha-core-python/
 ```
 
-Assuming your environment already satisfies the project prerequisites
-(Python 3.13+, Conan, and a supported compiler), the shortest reliable build
-flow is:
+The build needs Conan, CMake and a compiler with C++23 support. The bundled
+Conan profile selects GCC 15 on Linux, MSVC 19.5x on Windows and Apple Clang 21
+on macOS, matching the compilers used by the CI.
 
 ```bash
 cd pycanha-project
@@ -29,24 +34,25 @@ conan install ./pycanha-core-python/src/pycanha_core_bindings \
   -o pycanha-core*:PYCANHA_OPTION_USE_MKL=True
 
 cd pycanha-core-python
-CC=/usr/bin/gcc-14 CXX=/usr/bin/g++-14 pip install . \
+CC=gcc-15 CXX=g++-15 pip install . \
   --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="$PWD/build/conan-deps/conan_toolchain.cmake"
 ```
 
-The first command makes the local `pycanha-core` recipe available to Conan.
-The `conan install` step then generates the dependency graph and the CMake
-toolchain used by the bindings build. The final `pip install .` command builds
-the extension module with that generated toolchain.
+`CC` and `CXX` select the same compiler as the Conan profile. On Windows, run
+the `pip install` from a shell with the MSVC environment loaded instead. On
+macOS, use `CC=clang CXX=clang++`.
 
-On Linux, the bundled Conan profile expects GCC 14. On macOS, use
-`-o pycanha-core*:PYCANHA_OPTION_USE_MKL=False` in the Conan step and
-`CC=clang CXX=clang++` in the `pip install` step.
+`conan export` makes the local `pycanha-core` recipe visible to Conan.
+`conan install` resolves the dependency graph and writes the CMake toolchain.
+`pip install .` builds the extension module with that toolchain.
 
-The `--build=pycanha-core/*` flag is included on purpose: it forces Conan to
-rebuild the local `pycanha-core` package from source instead of reusing an old
-cached binary.
+`--build=pycanha-core/*` forces a rebuild of the local `pycanha-core` package
+from source instead of reusing a cached binary of an earlier revision.
 
-To verify the build afterwards, run:
+macOS builds without MKL. Pass
+`-o pycanha-core*:PYCANHA_OPTION_USE_MKL=False` in the Conan step.
+
+Run the test suite to check the result:
 
 ```bash
 pytest

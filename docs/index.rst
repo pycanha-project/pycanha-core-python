@@ -1,32 +1,42 @@
 pycanha-core Python bindings
 ============================
 
-``pycanha-core`` provides the Python bindings for the
-`pycanha-core <https://github.com/pycanha-project/pycanha-core>`_ C++ library.
-It exposes the thermal model, parameter, solver, and geometry APIs directly in Python.
+``pycanha-core`` is the Python binding of the `pycanha-core
+<https://github.com/pycanha-project/pycanha-core>`_ C++ library. It is imported
+as ``pycanha_core`` and exposes the thermal model, geometry, parameter, solver,
+radiative and conduction classes of the library.
 
-This documentation is intentionally small for now: it introduces the package and
-provides a complete API reference for the released wheel published to PyPI.
+Most code is written against `pycanha
+<https://github.com/pycanha-project/pycanha>`_, the Python package built on
+these bindings. This site documents the compiled layer itself and is an API
+reference for the wheel published on PyPI.
 
-Current documented release: |doc_release|.
+Documented release: |doc_release|.
 
 .. grid:: 1 1 2 2
    :gutter: 3
 
-   .. grid-item-card:: API Reference
+   .. grid-item-card:: Installation
+      :link: installation
+      :link-type: doc
+
+      Install from PyPI, or build the extension from a local checkout of the
+      C++ library.
+
+   .. grid-item-card:: API reference
       :link: api/index
       :link-type: doc
 
-      Browse the public Python bindings for the top-level package and each exposed
-      submodule.
+      Every class and function of the top-level package and of each submodule.
 
    .. grid-item-card:: Repository
       :link: https://github.com/pycanha-project/pycanha-core-python
 
-      Source code, issue tracker, release workflow, and future documentation updates.
+      Source code, issue tracker and releases.
 
 .. toctree::
    :maxdepth: 2
    :hidden:
 
+   installation
    api/index

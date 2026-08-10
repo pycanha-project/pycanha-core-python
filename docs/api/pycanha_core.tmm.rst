@@ -1,10 +1,10 @@
-:mod:`pycanha_core.tmm` — Thermal Model Classes
-================================================
+:mod:`pycanha_core.tmm` — Thermal model classes
+===============================================
 
 .. currentmodule:: pycanha_core.tmm
 
-The ``tmm`` submodule provides the core classes used to build and inspect
-thermal mathematical models.
+Nodes, couplings, time-dependent data and the Thermal Mathematical Model (TMM)
+that holds them.
 
 Enumerations
 ------------
@@ -112,6 +112,11 @@ Network and model
    :exclude-members: __dict__, __weakref__, __module__
 
 .. autoclass:: ThermalMathematicalModel
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: ThermalModel
    :members:
    :special-members: __init__
    :exclude-members: __dict__, __weakref__, __module__

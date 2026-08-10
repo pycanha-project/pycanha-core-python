@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/conduction/conduction.hpp"
 #include "pycanha-core/gmm/mesh/thermal_mesh.hpp"
 #include "pycanha-core/gmm/primitives/primitive.hpp"
@@ -53,7 +54,7 @@ inline void register_conduction(nb::module_& m) {
               "Temperature written to every generated node.")
       .def_rw("intra_primitive_conductors",
               &cond::TmmBuildOptions::intra_primitive_conductors,
-              "Generate the in-plane conductors of each primitive's own cell "
+              "Generate the in-plane conductors of each primitive's own face "
               "grid.")
       .def_rw("through_thickness_conductors",
               &cond::TmmBuildOptions::through_thickness_conductors,
@@ -61,7 +62,7 @@ inline void register_conduction(nb::module_& m) {
       .def_rw("close_full_revolution",
               &cond::TmmBuildOptions::close_full_revolution,
               "Close the conductor ring between the last and the first angular "
-              "cell of a primitive that spans a full revolution.")
+              "face of a primitive that spans a full revolution.")
       .def_rw("min_conductance", &cond::TmmBuildOptions::min_conductance,
               "Generated conductors at or below this value are dropped. The "
               "default keeps everything except exact zeros.");
@@ -72,17 +73,20 @@ inline void register_conduction(nb::module_& m) {
       "Why the builder skipped something or had to approximate it. A "
       "diagnostic never fails the build.")
       .value("CutGeometrySkipped", cond::DiagnosticCode::CutGeometrySkipped,
-             "Geometry inside a boolean-cut group: its cell grid no longer "
+             "Geometry inside a boolean-cut group: its face grid no longer "
              "exists, so the parametric integrals do not apply.")
       .value("UnmeshedPrimitive", cond::DiagnosticCode::UnmeshedPrimitive,
              "The primitive produces no faces at all (Cube is cutter-only).")
       .value("InactiveSideSkipped", cond::DiagnosticCode::InactiveSideSkipped,
-             "A side excluded by the conductive active-side selector.")
+             "A side carrying node numbers that one of the active-side "
+             "selectors excludes: either it takes part in neither physics, and "
+             "so contributes nothing at all, or it is radiative only, and so "
+             "defines nodes with capacitance but no conductors.")
       .value("MissingBulk", cond::DiagnosticCode::MissingBulk,
-             "No bulk material on a conductively active side: the side still "
-             "defines nodes, but with no capacitance and no conductors.")
+             "No bulk material on an active side: the side still defines "
+             "nodes, but with no capacitance and no conductors.")
       .value("ZeroThickness", cond::DiagnosticCode::ZeroThickness,
-             "Zero thickness on a conductively active side.")
+             "Zero thickness on an active side.")
       .value("ZeroConductivity", cond::DiagnosticCode::ZeroConductivity,
              "Zero conductivity on a conductively active side.")
       .value("MixedBulkOnNode", cond::DiagnosticCode::MixedBulkOnNode,
@@ -95,10 +99,10 @@ inline void register_conduction(nb::module_& m) {
       .value("NoNodeNumbers", cond::DiagnosticCode::NoNodeNumbers,
              "The item has no node numbers assigned on any active side.")
       .value("DegenerateCell", cond::DiagnosticCode::DegenerateCell,
-             "A cell with zero parametric extent, which carries no "
+             "A face with zero parametric extent, which carries no "
              "conductance.")
       .value("AxisSingularity", cond::DiagnosticCode::AxisSingularity,
-             "A cell band reaching the axis of revolution, whose "
+             "A face band reaching the axis of revolution, whose "
              "around-the-axis conductance uses the near-axis form.");
 
   m.def(
@@ -144,10 +148,14 @@ inline void register_conduction(nb::module_& m) {
       });
 
   m.def("build_tmm_from_gmm", &cond::build_tmm_from_gmm, "model"_a,
-        "options"_a = cond::TmmBuildOptions{},
-        "Populate the model's tmm from its gmm: one node per conductively "
-        "active face slot that carries a node number, plus the in-plane and "
-        "through-thickness conductors those slots imply. Radiative couplings, "
+        "options"_a = cond::TmmBuildOptions{}, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+        "Populate the model's tmm from its gmm: one node per ACTIVE face slot "
+        "that carries a node number — active meaning it takes part in "
+        "conduction, radiation or both — plus the in-plane and "
+        "through-thickness conductors the conductively active ones imply. A "
+        "node fed only by radiative-only slots therefore exists, with "
+        "capacitance and area, but with no conductor attached. Radiative "
+        "couplings, "
         "parameters, formulas and thermal data are left untouched. Raises "
         "ValueError when the tmm already holds nodes or conductive couplings "
         "(there is no merge semantics). Same as ThermalModel."
@@ -156,14 +164,14 @@ inline void register_conduction(nb::module_& m) {
   // ---- link-level services ------------------------------------------------
   nb::class_<cond::CellLink>(
       m, "CellLink",
-      "An in-plane conductor between two adjacent cells of one item. Cells "
-      "are linear indices of the ThermalMesh cell grid, k = i + j * (n1 - 1) "
-      "with direction 1 varying fastest.")
-      .def_ro("cell_a", &cond::CellLink::cell_a, "First cell index.")
-      .def_ro("cell_b", &cond::CellLink::cell_b, "Second cell index.")
+      "An in-plane conductor between two adjacent faces of one item. cell_a "
+      "and cell_b are linear indices of the ThermalMesh face grid, "
+      "k = i + j * (n1 - 1) with direction 1 varying fastest.")
+      .def_ro("cell_a", &cond::CellLink::cell_a, "First face index.")
+      .def_ro("cell_b", &cond::CellLink::cell_b, "Second face index.")
       .def_ro("side", &cond::CellLink::side,
               "1 or 2: which of the two sheets this conductor belongs to. The "
-              "link always joins the SAME side of both cells.")
+              "link always joins the SAME side of both faces.")
       .def_ro("conductance", &cond::CellLink::conductance, "W/K.")
       .def("__repr__", [](const cond::CellLink& link) {
         return "<CellLink " + std::to_string(link.cell_a) + "-" +
@@ -173,7 +181,7 @@ inline void register_conduction(nb::module_& m) {
 
   m.def("intra_primitive_links", &cond::intra_primitive_links, "primitive"_a,
         "thermal_mesh"_a, "options"_a = cond::TmmBuildOptions{},
-        "In-plane conductors of one item's cell grid: pure geometry and "
+        "In-plane conductors of one item's face grid: pure geometry and "
         "material, no model and no node numbers. A side contributes only when "
         "it is conductively active and carries both a bulk material with "
         "non-zero conductivity and a non-zero thickness.");
@@ -207,7 +215,7 @@ inline void register_conduction(nb::module_& m) {
                    "The profile Kind.")
       .def_prop_ro("closes_ring", &cond::MeridianProfile::closes_ring,
                    "True when direction 1 spans a full revolution, so the last "
-                   "angular cell is adjacent to the first one.")
+                   "angular face is adjacent to the first one.")
       .def_prop_ro("dir1_extent", &cond::MeridianProfile::dir1_extent,
                    "Total direction-1 extent, dir1_coordinate(1) - "
                    "dir1_coordinate(0).")

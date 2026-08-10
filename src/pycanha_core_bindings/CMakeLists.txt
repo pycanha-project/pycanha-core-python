@@ -21,6 +21,12 @@ nanobind_add_module(pycanha_core MODULE
 )
 
 target_link_libraries(pycanha_core PRIVATE pycanha-core::pycanha-core)
+
+# So that one binding header can include another by its "bindings/<area>/..."
+# path. Without it only the wrapper, which sits in this directory, can use that
+# spelling: GCC resolves a quoted include against the including file's own
+# directory, not against the translation unit's.
+target_include_directories(pycanha_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(pycanha_core PROPERTIES
     BUILD_RPATH "\$ORIGIN/../../.."
     INSTALL_RPATH "\$ORIGIN/../../.."
@@ -107,6 +113,14 @@ else()
         pycanha_core_conduction_stub
         MODULE pycanha_core.conduction
         OUTPUT "${STUB_DIR}/conduction.pyi"
+        PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+        DEPENDS pycanha_core
+    )
+
+    nanobind_add_stub(
+        pycanha_core_log_stub
+        MODULE pycanha_core.log
+        OUTPUT "${STUB_DIR}/log.pyi"
         PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
         DEPENDS pycanha_core
     )

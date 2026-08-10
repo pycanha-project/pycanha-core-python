@@ -1,8 +1,8 @@
-API Reference
+API reference
 =============
 
-This section documents the public API exposed by the released
-``pycanha-core`` Python wheel.
+The public API of the ``pycanha-core`` wheel. Each page covers the top-level
+package or one submodule of the compiled ``pycanha_core`` module.
 
 .. toctree::
    :maxdepth: 2
@@ -14,3 +14,4 @@ This section documents the public API exposed by the released
    pycanha_core.gmm
    pycanha_core.radiative
    pycanha_core.conduction
+   pycanha_core.log

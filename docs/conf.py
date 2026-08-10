@@ -32,9 +32,6 @@ exclude_patterns = [
 	"_build",
 	"Thumbs.db",
 	".DS_Store",
-	"installation.md",
-	"modules.rst",
-	"pycanha_core.rst",
 ]
 
 autodoc_default_options = {

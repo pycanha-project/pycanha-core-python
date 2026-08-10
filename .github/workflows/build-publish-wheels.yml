@@ -251,7 +251,7 @@ jobs:
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python/stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi log.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -357,7 +357,7 @@ jobs:
       - name: Validate pregenerated stubs
         run: |
           cd pycanha-project/pycanha-core-python/pregenerated-stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi log.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }

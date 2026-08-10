@@ -5,6 +5,18 @@ import pycanha_core as pcc
 import pytest
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _no_log_files_from_the_test_run():
+    """Keep the suite off the filesystem.
+
+    The log directory is resolved against the current working directory, so a
+    run that logs anything would drop a dated log file wherever pytest was
+    started. The logging tests point the directory at a tmp_path and switch
+    this back on for themselves.
+    """
+    pcc.log.set_file_output(False)
+
+
 @pytest.fixture
 def origin():
     return np.array([0.0, 0.0, 0.0])

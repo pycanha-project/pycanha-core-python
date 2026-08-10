@@ -11,6 +11,7 @@
 #include <memory>
 #include <span>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/gmm/scene/geometry.hpp"
 #include "pycanha-core/gmm/scene/geometry_group.hpp"
 #include "pycanha-core/gmm/scene/geometry_group_cutted.hpp"
@@ -64,7 +65,7 @@ inline void Geometry_b(nb::module_& m) {
           "Immediate children (empty for a GeometryItem).")
       .def_prop_ro("mesh", &Geometry::mesh, nb::rv_policy::reference_internal,
                    "Subtree mesh (TriMeshD) in the parent frame; lazily built.")
-      .def("create_mesh", &Geometry::create_mesh,
+      .def("create_mesh", &Geometry::create_mesh, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Force a rebuild of this object's subtree mesh.")
       .def_prop_ro("owning_model", &Geometry::owning_model,
                    nb::rv_policy::reference,

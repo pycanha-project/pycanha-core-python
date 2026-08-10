@@ -1,9 +1,9 @@
-:mod:`pycanha_core.solvers` — Solver Classes
+:mod:`pycanha_core.solvers` — Solver classes
 ============================================
 
 .. currentmodule:: pycanha_core.solvers
 
-The ``solvers`` submodule exposes the steady-state and transient solver classes.
+The steady-state and transient solvers.
 
 .. autoclass:: Solver
    :members:

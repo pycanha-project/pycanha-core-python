@@ -1,10 +1,10 @@
-:mod:`pycanha_core.parameters` — Parameters and Formulas
+:mod:`pycanha_core.parameters` — Parameters and formulas
 ========================================================
 
 .. currentmodule:: pycanha_core.parameters
 
-The ``parameters`` submodule provides the core parameter storage and formula
-binding types used by the thermal model.
+Parameter storage, the entities a formula can be bound to, and the formula
+types themselves.
 
 Parameters
 ----------

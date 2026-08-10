@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/gmm/geometrymodel.hpp"
 
 namespace nb = nanobind;
@@ -91,7 +92,7 @@ inline void GeometryModel_b(nb::module_& m) {
       .def_prop_ro("mesh", &GeometryModel::mesh,
                    nb::rv_policy::reference_internal,
                    "World mesh as float32 (TriMeshF); lazily built and cached.")
-      .def("create_mesh", &GeometryModel::create_mesh,
+      .def("create_mesh", &GeometryModel::create_mesh, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Force a full rebuild of the world mesh.")
       .def("invalidate_mesh", &GeometryModel::invalidate_mesh,
            "Mark the world mesh dirty without rebuilding.")

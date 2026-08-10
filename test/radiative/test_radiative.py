@@ -1,4 +1,4 @@
-"""Tests for the pycanha_core.radiative bindings (0.17).
+"""Tests for the pycanha_core.radiative bindings.
 
 The kernel end-to-ends (view factors, exchange, solar) run on EVERY platform
 where the raytracer is built (hardware GPU or software lavapipe) and are
@@ -8,12 +8,18 @@ backend lands; there the whole GPU-dependent class is skipped (and
 ``is_available()`` returns False).
 
 The Gebhart and aggregation services are pure CPU and are tested everywhere.
+
+Every sparse result crosses as a scipy.sparse.csr_matrix, and every sparse
+argument accepts one. Matrix results hold the UPPER TRIANGLE of the symmetric,
+extensive quantity (G = A_i F_ij for view factors), so a test that builds an
+input by hand builds it in that form.
 """
 
 import platform
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_matrix
 
 import pycanha_core as pcc
 
@@ -27,15 +33,13 @@ gmm = pcc.gmm
 
 
 def _densify(sparse):
-    """Materialize a radiative.SparseF64 as a dense numpy array."""
-    dense = np.zeros((sparse.rows, sparse.cols), dtype=np.float64)
-    indptr = np.asarray(sparse.indptr)
-    indices = np.asarray(sparse.indices)
-    values = np.asarray(sparse.values)
-    for row in range(sparse.rows):
-        for k in range(indptr[row], indptr[row + 1]):
-            dense[row, indices[k]] = values[k]
-    return dense
+    """Materialize a scipy sparse matrix as a dense numpy array."""
+    return np.asarray(sparse.todense())
+
+
+def _csr(dense):
+    """Build the csr_matrix a binding argument expects from a dense list."""
+    return csr_matrix(np.asarray(dense, dtype=np.float64))
 
 
 class TestModuleSurface:
@@ -55,6 +59,9 @@ class TestModuleSurface:
         assert rad.PartKind.Articulated is not None
         assert rad.Band.IR != rad.Band.Solar
         assert rad.AccumLayout.Dense != rad.AccumLayout.Tiled
+        # NONE rather than None: the C++ enumerator's name is a Python keyword.
+        assert rad.TriangulationMode.NONE != rad.TriangulationMode.RayDensity
+        assert rad.TriangulationMode.ConstrainedLeastSquares is not None
 
     def test_virtual_bucket_column_constants(self):
         # Every matrix result appends these columns after the real face slots.
@@ -100,6 +107,25 @@ class TestValueTypes:
         c = rad.AccumConfig(layout=rad.AccumLayout.Tiled, tile_rows=64)
         assert c.layout == rad.AccumLayout.Tiled
         assert c.tile_rows == 64
+        # The default triangulation travels with a default-built config.
+        assert c.triangulation.mode == rad.TriangulationMode.RayDensity
+
+    def test_triangulation_config_defaults(self):
+        t = rad.TriangulationConfig()
+        assert t.mode == rad.TriangulationMode.RayDensity
+        assert t.exponent == pytest.approx(0.4)
+        assert t.keep_full_matrix is False
+
+    def test_triangulation_config_travels_into_accum_config(self):
+        t = rad.TriangulationConfig(
+            mode=rad.TriangulationMode.ConstrainedLeastSquares,
+            keep_full_matrix=True,
+        )
+        c = rad.AccumConfig(triangulation=t)
+        assert c.triangulation.mode == rad.TriangulationMode.ConstrainedLeastSquares
+        assert c.triangulation.keep_full_matrix is True
+        c.triangulation = rad.TriangulationConfig(exponent=1.0)
+        assert c.triangulation.exponent == pytest.approx(1.0)
 
     def test_material_table_roundtrip(self):
         props = np.array([[0.9, 0.0, 0.0, 0.2, 0.0, 0.0]], dtype=np.float32)
@@ -112,56 +138,71 @@ class TestValueTypes:
         np.testing.assert_array_equal(np.asarray(table.face_active), face_active)
 
 
-class TestSparseF64:
-    def test_construction_and_views(self):
-        indptr = np.array([0, 1, 2], dtype=np.int64)
-        indices = np.array([1, 0], dtype=np.int32)
-        values = np.array([0.5, 0.4], dtype=np.float64)
-        s = rad.SparseF64(indptr, indices, values, 2, 2)
-        assert s.rows == 2
-        assert s.cols == 2
-        assert s.nnz() == 2
-        assert s.shape == (2, 2)
-        np.testing.assert_array_equal(np.asarray(s.indptr), indptr)
-        np.testing.assert_array_equal(np.asarray(s.values), values)
-        np.testing.assert_allclose(_densify(s), [[0.0, 0.5], [0.4, 0.0]])
-
-
 class TestAggregation:
     def test_aggregate_nodes_sorted_unique_without_no_node(self):
         node_numbers = np.array([20, -1, 10, 20, -1, 10], dtype=np.int32)
         nodes = np.asarray(rad.aggregate_nodes(node_numbers))
         np.testing.assert_array_equal(nodes, [10, 20])
 
-    def test_aggregate_matrix_area_weighted(self):
-        # 2 faces on nodes 10 and 20; F = [[0, 0.5], [0.4, 0]].
-        indptr = np.array([0, 1, 2], dtype=np.int64)
-        indices = np.array([1, 0], dtype=np.int32)
-        values = np.array([0.5, 0.4], dtype=np.float64)
-        face_matrix = rad.SparseF64(indptr, indices, values, 2, 2)
+    def test_aggregate_matrix_sums_the_extensive_entries(self):
+        # 2 faces on nodes 10 and 20, coupled by G(0,1) = 1.0 (m^2). The
+        # reduction is a plain sum: the stored value is already extensive, so
+        # there is no area weighting to apply.
+        face_matrix = _csr([[0.0, 1.0], [0.0, 0.0]])
         node_numbers = np.array([10, 20], dtype=np.int32)
-        face_areas = np.array([2.0, 3.0], dtype=np.float64)
 
-        out = rad.aggregate_matrix(face_matrix, node_numbers, face_areas)
-        dense = _densify(out)
-        # out(0,1) = area[0]*F(0,1) = 2*0.5 = 1.0; out(1,0) = area[1]*F(1,0) = 3*0.4.
-        np.testing.assert_allclose(dense, [[0.0, 1.0], [1.2, 0.0]])
+        out = rad.aggregate_matrix(face_matrix, node_numbers)
+        np.testing.assert_allclose(
+            _densify(out.matrix), [[0.0, 1.0], [0.0, 0.0]]
+        )
+        assert out.intra_node_total == 0.0
 
     def test_aggregate_matrix_merges_faces_of_same_node(self):
-        # 2 faces on the SAME node 10, plus node 20; check the reduction sums.
-        # F = identity-ish off-diagonals so each face sees node 20.
-        indptr = np.array([0, 1, 2, 2], dtype=np.int64)
-        indices = np.array([2, 2], dtype=np.int32)
-        values = np.array([0.3, 0.7], dtype=np.float64)
-        face_matrix = rad.SparseF64(indptr, indices, values, 3, 3)
+        # Faces 0 and 1 are both node 10, face 2 is node 20.
+        face_matrix = _csr(
+            [
+                [0.0, 0.0, 0.3],
+                [0.0, 0.0, 0.7],
+                [0.0, 0.0, 0.0],
+            ]
+        )
         node_numbers = np.array([10, 10, 20], dtype=np.int32)
-        face_areas = np.array([1.0, 2.0, 5.0], dtype=np.float64)
 
-        out = rad.aggregate_matrix(face_matrix, node_numbers, face_areas)
-        dense = _densify(out)
-        # node 10 -> row 0, node 20 -> row 1.
-        # out(0,1) = area0*F(0,2) + area1*F(1,2) = 1*0.3 + 2*0.7 = 1.7.
-        np.testing.assert_allclose(dense, [[0.0, 1.7], [0.0, 0.0]])
+        out = rad.aggregate_matrix(face_matrix, node_numbers)
+        # node 10 -> row 0, node 20 -> row 1: 0.3 + 0.7 lands on (0, 1).
+        np.testing.assert_allclose(
+            _densify(out.matrix), [[0.0, 1.0], [0.0, 0.0]]
+        )
+
+    def test_aggregate_matrix_reports_the_intra_node_couplings_it_drops(self):
+        # G(0,1) couples two faces of the SAME node: a node is isothermal, so
+        # that exchange transports no heat and has no slot in the network.
+        face_matrix = _csr(
+            [
+                [0.0, 0.25, 0.3],
+                [0.0, 0.00, 0.7],
+                [0.0, 0.00, 0.0],
+            ]
+        )
+        node_numbers = np.array([10, 10, 20], dtype=np.int32)
+
+        out = rad.aggregate_matrix(face_matrix, node_numbers)
+        np.testing.assert_allclose(
+            _densify(out.matrix), [[0.0, 1.0], [0.0, 0.0]]
+        )
+        assert out.intra_node_total == pytest.approx(0.25)
+
+    def test_aggregate_matrix_canonicalises_into_the_upper_triangle(self):
+        # Node numbers are assigned independently of slot numbering, so the
+        # face pair (0, 1) lands on the node pair (1, 0) and has to be flipped.
+        face_matrix = _csr([[0.0, 1.0], [0.0, 0.0]])
+        node_numbers = np.array([20, 10], dtype=np.int32)
+
+        out = rad.aggregate_matrix(face_matrix, node_numbers)
+        # Rows/cols are [10, 20]: the entry must land above the diagonal.
+        np.testing.assert_allclose(
+            _densify(out.matrix), [[0.0, 1.0], [0.0, 0.0]]
+        )
 
     def test_aggregate_flux(self):
         face_flux = np.array([100.0, 200.0], dtype=np.float64)
@@ -175,56 +216,64 @@ class TestAggregation:
 
     def test_aggregate_matrix_row_col_maps_bucket_to_a_node(self):
         # 2 face rows, 2 face columns + the 3 virtual bucket columns. Row 0
-        # sends half to face 1 and half to space; row 1 sends 0.4 to face 0
-        # and 0.6 to space.
+        # couples to face 1 and to space; row 1 only to space.
         space_col = 2 + rad.space_column_offset
-        indptr = np.array([0, 2, 4], dtype=np.int64)
-        indices = np.array([1, space_col, 0, space_col], dtype=np.int32)
-        values = np.array([0.5, 0.5, 0.4, 0.6], dtype=np.float64)
-        face_matrix = rad.SparseF64(indptr, indices, values, 2, 5)
+        dense = np.zeros((2, 5))
+        dense[0, 1] = 1.0
+        dense[0, space_col] = 0.5
+        dense[1, space_col] = 0.6
+        face_matrix = csr_matrix(dense)
 
         row_nodes = np.array([10, 20], dtype=np.int32)
         # Space maps to node 99; the inactive/lost buckets are dropped.
         col_nodes = np.array([10, 20, 99, -1, -1], dtype=np.int32)
-        face_areas = np.array([2.0, 3.0], dtype=np.float64)
 
-        out = rad.aggregate_matrix(face_matrix, row_nodes, col_nodes, face_areas)
-        assert out.shape == (2, 3)  # rows [10, 20], cols [10, 20, 99]
+        out = rad.aggregate_matrix(face_matrix, row_nodes, col_nodes)
+        assert out.matrix.shape == (2, 3)  # rows [10, 20], cols [10, 20, 99]
+        # Two independent label sets: every entry stays where it lands, with
+        # no triangle to canonicalise into.
         np.testing.assert_allclose(
-            _densify(out),
-            [[0.0, 1.0, 1.0], [1.2, 0.0, 1.8]],
+            _densify(out.matrix),
+            [[0.0, 1.0, 0.5], [0.0, 0.0, 0.6]],
         )
+        assert out.intra_node_total == 0.0
 
     def test_aggregate_matrix_plain_overload_drops_buckets(self):
         space_col = 2 + rad.space_column_offset
-        indptr = np.array([0, 2, 3], dtype=np.int64)
-        indices = np.array([1, space_col, space_col], dtype=np.int32)
-        values = np.array([0.5, 0.5, 1.0], dtype=np.float64)
-        face_matrix = rad.SparseF64(indptr, indices, values, 2, 5)
+        dense = np.zeros((2, 5))
+        dense[0, 1] = 1.0
+        dense[0, space_col] = 0.5
+        dense[1, space_col] = 1.0
+        face_matrix = csr_matrix(dense)
         node_numbers = np.array([10, 20], dtype=np.int32)
-        face_areas = np.array([2.0, 3.0], dtype=np.float64)
 
-        out = rad.aggregate_matrix(face_matrix, node_numbers, face_areas)
-        assert out.shape == (2, 2)
-        np.testing.assert_allclose(_densify(out), [[0.0, 1.0], [0.0, 0.0]])
+        out = rad.aggregate_matrix(face_matrix, node_numbers)
+        assert out.matrix.shape == (2, 2)
+        np.testing.assert_allclose(
+            _densify(out.matrix), [[0.0, 1.0], [0.0, 0.0]]
+        )
 
 
 class TestGebhart:
     """CPU diffuse-gray services: no GPU involved, so they run everywhere."""
 
     # Two infinite parallel gray plates (F12 = F21 = 1, closed enclosure) have
-    # the closed-form Gebhart matrix below for equal emissivities.
+    # the closed-form Gebhart matrix below for equal emissivities. With unit
+    # areas the stored G(0,1) = A_0 F_01 is 1.0, in the upper triangle only.
+    _UNIT_AREAS = np.array([1.0, 1.0], dtype=np.float64)
+
     @staticmethod
     def _closed_pair_vf(cols=2):
-        indptr = np.array([0, 1, 2], dtype=np.int64)
-        indices = np.array([1, 0], dtype=np.int32)
-        values = np.array([1.0, 1.0], dtype=np.float64)
-        return rad.SparseF64(indptr, indices, values, 2, cols)
+        dense = np.zeros((2, cols))
+        dense[0, 1] = 1.0
+        return csr_matrix(dense)
 
     def test_gebhart_factors_two_plate_closed_form(self):
         eps = 0.5
         b = _densify(
-            rad.gebhart_factors(self._closed_pair_vf(), np.array([eps, eps]))
+            rad.gebhart_factors(
+                self._closed_pair_vf(), np.array([eps, eps]), self._UNIT_AREAS
+            )
         )
         # B = (I - F R)^-1 F E with R = 1 - eps: off-diagonal 2/3, diagonal 1/3.
         np.testing.assert_allclose(b, [[1 / 3, 2 / 3], [2 / 3, 1 / 3]])
@@ -233,32 +282,58 @@ class TestGebhart:
         # eps * B12 is the classic script-F = 1/(1/e1 + 1/e2 - 1).
         np.testing.assert_allclose(eps * b[0, 1], 1.0 / (1 / eps + 1 / eps - 1))
 
+    def test_gebhart_factors_recovers_both_directions_from_the_areas(self):
+        # Unequal areas: the single stored G(0,1) is A_0 F_01 = A_1 F_10, so
+        # F_01 = 1 and F_10 = 0.5 come back from the areas alone.
+        areas = np.array([1.0, 2.0], dtype=np.float64)
+        dense = np.zeros((2, 2))
+        dense[0, 1] = 1.0
+        eps = np.array([1.0, 1.0])
+
+        b = _densify(rad.gebhart_factors(csr_matrix(dense), eps, areas))
+        # Black surfaces re-emit nothing, so B is F itself.
+        np.testing.assert_allclose(b, [[0.0, 1.0], [0.5, 0.0]])
+
+    def test_gebhart_rejects_a_lower_triangle_entry(self):
+        # The transpose of a stored coupling is not a second coupling; folding
+        # it in would count the pair twice.
+        both_triangles = _csr([[0.0, 1.0], [1.0, 0.0]])
+        with pytest.raises(ValueError):
+            rad.gebhart_factors(
+                both_triangles, np.array([0.5, 0.5]), self._UNIT_AREAS
+            )
+
     def test_gebhart_factors_accepts_bucket_carrying_vf(self):
         # A traced VF result carries the virtual columns; the bucket columns
         # never re-emit, so both shapes solve the same system.
         eps = np.array([0.5, 0.5])
-        square = _densify(rad.gebhart_factors(self._closed_pair_vf(), eps))
+        square = _densify(
+            rad.gebhart_factors(self._closed_pair_vf(), eps, self._UNIT_AREAS)
+        )
         with_buckets = _densify(
             rad.gebhart_factors(
-                self._closed_pair_vf(2 + rad.num_virtual_columns), eps
+                self._closed_pair_vf(2 + rad.num_virtual_columns),
+                eps,
+                self._UNIT_AREAS,
             )
         )
         np.testing.assert_allclose(with_buckets, square)
 
     def test_gebhart_factors_space_policy_renormalizes(self):
         # An open enclosure: each plate sees the other with 0.5 only.
-        indptr = np.array([0, 1, 2], dtype=np.int64)
-        indices = np.array([1, 0], dtype=np.int32)
-        values = np.array([0.5, 0.5], dtype=np.float64)
-        vf = rad.SparseF64(indptr, indices, values, 2, 2)
+        dense = np.zeros((2, 2))
+        dense[0, 1] = 0.5
+        vf = csr_matrix(dense)
         eps = np.array([0.5, 0.5])
 
-        as_space = _densify(rad.gebhart_factors(vf, eps, 1.0))
+        as_space = _densify(rad.gebhart_factors(vf, eps, self._UNIT_AREAS, 1.0))
         # policy 1.0 keeps the deficit as a real view to space: rows lose it.
         assert as_space.sum(axis=1)[0] < 1.0
         # policy 0.0 treats the deficit as Monte-Carlo noise and renormalizes,
         # which recovers the closed two-plate answer.
-        renormalized = _densify(rad.gebhart_factors(vf, eps, 0.0))
+        renormalized = _densify(
+            rad.gebhart_factors(vf, eps, self._UNIT_AREAS, 0.0)
+        )
         np.testing.assert_allclose(
             renormalized, [[1 / 3, 2 / 3], [2 / 3, 1 / 3]]
         )
@@ -266,13 +341,12 @@ class TestGebhart:
     def test_gebhart_node_factors_reciprocity(self):
         eps = 0.5
         node_numbers = np.array([10, 20], dtype=np.int32)
-        face_areas = np.array([1.0, 1.0], dtype=np.float64)
         gr = _densify(
             rad.gebhart_node_factors(
                 self._closed_pair_vf(),
                 np.array([eps, eps]),
                 node_numbers,
-                face_areas,
+                self._UNIT_AREAS,
             )
         )
         # GR(m, n) = sum A_i eps_i B_ij: eps * B with unit areas.
@@ -284,11 +358,15 @@ class TestGebhart:
 
     def test_gebhart_rejects_bad_emissivity(self):
         with pytest.raises(ValueError):
-            rad.gebhart_factors(self._closed_pair_vf(), np.array([0.5, 1.5]))
+            rad.gebhart_factors(
+                self._closed_pair_vf(), np.array([0.5, 1.5]), self._UNIT_AREAS
+            )
 
     def test_gebhart_rejects_mismatched_sizes(self):
         with pytest.raises(ValueError):
-            rad.gebhart_factors(self._closed_pair_vf(), np.array([0.5]))
+            rad.gebhart_factors(
+                self._closed_pair_vf(), np.array([0.5]), self._UNIT_AREAS
+            )
 
 
 def _build_panel_model():
@@ -365,20 +443,42 @@ class TestViewFactorEndToEnd:
         scene.accumulate_vf(acc, rad.TraceSettings(rays_per_face=1024, seed=0))
         result = acc.result()
 
-        assert result.vf.rows == nf
         # Columns carry the virtual space/inactive/lost buckets.
-        assert result.vf.cols == nf + rad.num_virtual_columns
+        assert result.vf.shape == (nf, nf + rad.num_virtual_columns)
         assert np.asarray(result.row_sums).shape[0] == nf
         # With the buckets included every emitting row closes at exactly 1.
         row_sums = np.asarray(result.row_sums)
         np.testing.assert_allclose(row_sums, np.ones(nf), atol=1e-12)
         assert result.stats.total_rays > 0
+        # Nothing asked for the raw both-triangle matrix.
+        assert result.full_vf is None
 
         # An isolated panel sees nothing: all of it goes to the space bucket.
+        # The stored value is extensive, so a fully escaping row carries its
+        # own area there rather than a view factor of 1.
+        areas = np.asarray(scene.face_areas())
         dense = _densify(result.vf)
         np.testing.assert_allclose(
-            dense[:, nf + rad.space_column_offset], np.ones(nf), atol=1e-12
+            dense[:, nf + rad.space_column_offset], areas, atol=1e-12
         )
+        # Only the upper triangle of the real face columns is stored.
+        assert np.count_nonzero(np.tril(dense[:, :nf], k=-1)) == 0
+
+    def test_keep_full_matrix_returns_both_triangles(self):
+        device = rad.Device.create()
+        model = _build_panel_model()
+        scene = rad.RadiativeScene(
+            device, model.mesh_parts(), model.material_table()
+        )
+        config = rad.AccumConfig(
+            triangulation=rad.TriangulationConfig(keep_full_matrix=True)
+        )
+        acc = rad.VfAccumulator(scene, config)
+        scene.accumulate_vf(acc, rad.TraceSettings(rays_per_face=256, seed=0))
+        result = acc.result()
+
+        assert result.full_vf is not None
+        assert result.full_vf.shape == result.vf.shape
 
     def test_estimate_memory(self):
         device = rad.Device.create()
@@ -433,6 +533,7 @@ class TestExchangeEndToEnd:
             device, model.mesh_parts(), model.material_table()
         )
         nf = scene.num_face_slots()
+        table = scene.materials()
 
         acc = rad.ExchangeAccumulator(scene, rad.Band.IR)
         scene.accumulate_exchange(
@@ -441,17 +542,22 @@ class TestExchangeEndToEnd:
         result = acc.result()
 
         assert result.band == rad.Band.IR
-        assert result.factors.rows == nf
-        assert result.factors.cols == nf + rad.num_virtual_columns
+        assert result.factors.shape == (nf, nf + rad.num_virtual_columns)
+        assert result.full_factors is None
         # The kernel flushes every ray's balance into a column, so the
         # conservation residue is zero by construction, not within noise.
         assert acc.conservation_error() == 0
 
         # The two sides of an isolated panel face away from each other and see
-        # nothing: all emitted energy escapes.
+        # nothing: all emitted energy escapes. The stored value is extensive,
+        # so a fully escaping row carries its emissive area A_i eps_i.
+        eps = np.asarray(table.properties)[
+            np.asarray(table.face_material), 0
+        ]
+        emissive_area = np.asarray(scene.face_areas()) * eps
         dense = _densify(result.factors)
         np.testing.assert_allclose(
-            dense[:, nf + rad.space_column_offset], np.ones(nf), atol=1e-9
+            dense[:, nf + rad.space_column_offset], emissive_area, atol=1e-9
         )
 
     def test_reset_clears_the_accumulator(self):

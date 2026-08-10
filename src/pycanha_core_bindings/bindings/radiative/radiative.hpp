@@ -1,16 +1,20 @@
 #pragma once
 #include <nanobind/eigen/dense.h>
+#include <nanobind/eigen/sparse.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/globals.hpp"
 #include "pycanha-core/radiative/radiative.hpp"
 
@@ -24,10 +28,14 @@ namespace gmm = pycanha::gmm;
 
 // 1:1 nanobind exposure of pycanha::radiative. Zero policy: orbits, environments
 // and the apply_to machinery live in the pure-Python pycanha.radiative layer.
-// Core 0.17 completes the kernel set, so the whole public C++ surface is exposed
-// here: the geometric view-factor, multi-bounce exchange and solar paths, the
-// CPU Gebhart and face->node aggregation services, and the memory-sizing
-// mechanism the Python layer's accumulator policy is built on.
+// The whole public C++ surface is exposed here: the geometric view-factor,
+// multi-bounce exchange and solar paths, the CPU Gebhart and face->node
+// aggregation services, and the memory-sizing mechanism the Python layer's
+// accumulator policy is built on.
+//
+// Every sparse result crosses as a scipy.sparse.csr_matrix: the core stores
+// them as row-major Eigen sparse matrices, which nanobind converts directly, so
+// there is no pycanha-specific CSR type to unpack on the Python side.
 inline void register_radiative(nb::module_& m) {
   // ---- virtual bucket columns ---------------------------------------------
   // Every matrix result appends these columns after the num_face_slots real
@@ -55,6 +63,27 @@ inline void register_radiative(nb::module_& m) {
       "the same seed (cells accumulate as integers).")
       .value("Dense", rad::AccumLayout::Dense)
       .value("Tiled", rad::AccumLayout::Tiled);
+
+  // Spelled NONE because `None` is a Python keyword; the other two keep their
+  // C++ spelling.
+  nb::enum_<rad::TriangulationMode>(
+      m, "TriangulationMode",
+      "How the two independent Monte-Carlo estimates of a face pair are "
+      "combined into the single reciprocity-consistent value that is stored.")
+      .value("NONE", rad::TriangulationMode::None,
+             "Keep the forward estimate as traced. Nothing is combined, so the "
+             "stored triangle is still two independent noisy numbers per pair "
+             "— the mode to reach for when bisecting an assembly bug.")
+      .value("RayDensity", rad::TriangulationMode::RayDensity,
+             "Weight each direction by how densely it was sampled. exponent=1 "
+             "is exactly inverse-variance weighting; the 0.4 default is the "
+             "more aggressive empirical rule the reference implementation "
+             "uses.")
+      .value("ConstrainedLeastSquares",
+             rad::TriangulationMode::ConstrainedLeastSquares,
+             "Impose reciprocity AND row closure together, instead of blending "
+             "each pair and renormalizing afterwards (which partly undoes the "
+             "reciprocity just imposed). Ignores `exponent`.");
 
   // ---- device -------------------------------------------------------------
   nb::class_<rad::DeviceInfo>(m, "DeviceInfo",
@@ -201,26 +230,61 @@ inline void register_radiative(nb::module_& m) {
               "Emit along the face normal instead of the cosine-weighted "
               "hemisphere (the legacy `_Nodes` mode; vf/exchange only).");
 
+  // Before AccumConfig: it appears there as a default argument value, and
+  // nanobind converts a default to Python when the signature is defined rather
+  // than when it is called.
+  nb::class_<rad::TriangulationConfig>(
+      m, "TriangulationConfig",
+      "How a matrix result reconciles the two directions of each face pair.")
+      .def(nb::init<>(), "Create the default (RayDensity, 0.4) configuration.")
+      .def(
+          "__init__",
+          [](rad::TriangulationConfig* self, rad::TriangulationMode mode,
+             double exponent, bool keep_full_matrix) {
+            new (self)
+                rad::TriangulationConfig{mode, exponent, keep_full_matrix};
+          },
+          "mode"_a = rad::TriangulationMode::RayDensity, "exponent"_a = 0.4,
+          "keep_full_matrix"_a = false, "Build a triangulation configuration.")
+      .def_rw("mode", &rad::TriangulationConfig::mode,
+              "Which combination rule to apply.")
+      .def_rw("exponent", &rad::TriangulationConfig::exponent,
+              "RayDensity only; must be > 0. 1.0 reduces the weight to "
+              "inverse-variance weighting.")
+      .def_rw("keep_full_matrix", &rad::TriangulationConfig::keep_full_matrix,
+              "Also keep the raw, untriangulated matrix (both triangles) "
+              "alongside the combined upper triangle. Doubles the result "
+              "memory; for debugging a model, not for production runs.");
+
   nb::class_<rad::AccumConfig>(
       m, "AccumConfig",
-      "Accumulator configuration: layout, tile height and readback sparsity "
-      "threshold.")
+      "Accumulator configuration: layout, tile height, readback sparsity "
+      "threshold and triangulation rule.")
       .def(nb::init<>(), "Create the default (Dense) configuration.")
       .def(
           "__init__",
           [](rad::AccumConfig* self, rad::AccumLayout layout,
-             std::uint32_t tile_rows, double sparse_threshold) {
-            new (self) rad::AccumConfig{layout, tile_rows, sparse_threshold};
+             std::uint32_t tile_rows, double sparse_threshold,
+             rad::TriangulationConfig triangulation) {
+            new (self) rad::AccumConfig{layout, tile_rows, sparse_threshold,
+                                        triangulation};
           },
           "layout"_a = rad::AccumLayout::Dense, "tile_rows"_a = 0,
-          "sparse_threshold"_a = 0.0, "Build an accumulator configuration.")
+          "sparse_threshold"_a = 0.0,
+          "triangulation"_a = rad::TriangulationConfig{},
+          "Build an accumulator configuration.")
       .def_rw("layout", &rad::AccumConfig::layout, "Dense or Tiled.")
       .def_rw("tile_rows", &rad::AccumConfig::tile_rows,
               "Tiled only; row-block height (0 is invalid, must be set).")
       .def_rw("sparse_threshold", &rad::AccumConfig::sparse_threshold,
-              "Drop result entries with |value| <= threshold (0 keeps any "
-              "nonzero). Row sums and statistics are computed BEFORE "
-              "thresholding, so closure/conservation accounting stays exact.");
+              "Drop result entries with abs(value) <= threshold (0 keeps any "
+              "nonzero). The comparison is on the INTENSIVE value and happens "
+              "AFTER the two directions are combined, so a pair is dropped "
+              "only when both directions are negligible. Row sums and "
+              "statistics are computed BEFORE thresholding, so "
+              "closure/conservation accounting stays exact.")
+      .def_rw("triangulation", &rad::AccumConfig::triangulation,
+              "Applies to the VF and the exchange accumulator alike.");
 
   // ---- results ------------------------------------------------------------
   nb::class_<rad::TraceStats>(
@@ -234,7 +298,11 @@ inline void register_radiative(nb::module_& m) {
       .def_ro("max_stderr", &rad::TraceStats::max_stderr,
               "Max per-entry standard-error estimate.")
       .def_ro("reciprocity_residual", &rad::TraceStats::reciprocity_residual,
-              "VF only: max |Ai*Fij - Aj*Fji| (normalized).")
+              "Matrix results: the largest normalized disagreement of the two "
+              "directions of a face pair, measured on the RAW estimates before "
+              "they are combined — measured after, it would be zero by "
+              "construction and would stop being the winding/parity check it "
+              "exists to be.")
       .def_ro("lost_energy_fraction", &rad::TraceStats::lost_energy_fraction,
               "Exchange only: the mathematical residue (Russian-roulette "
               "balance, max_bounces cutoff). Absorption at inactive faces is "
@@ -246,71 +314,41 @@ inline void register_radiative(nb::module_& m) {
           },
           "GPU trace time in nanoseconds.");
 
-  // Minimal CSR container; the three arrays are exposed zero-copy so a consumer
-  // can wrap them in scipy.sparse.csr_matrix((values, indices, indptr), shape)
-  // without a copy.
-  nb::class_<rad::SparseF64>(m, "SparseF64",
-                             "Minimal CSR matrix (rows/cols are face slots).")
-      .def(nb::init<>(), "Create an empty (0x0) sparse matrix.")
-      .def(
-          "__init__",
-          [](rad::SparseF64* self, Eigen::VectorX<std::int64_t> indptr,
-             Eigen::VectorX<std::int32_t> indices, Eigen::VectorXd values,
-             std::int64_t rows, std::int64_t cols) {
-            new (self) rad::SparseF64{std::move(indptr), std::move(indices),
-                                      std::move(values), rows, cols};
-          },
-          "indptr"_a, "indices"_a, "values"_a, "rows"_a, "cols"_a,
-          "Build a CSR matrix from its arrays and shape (scipy csr layout).")
-      .def_prop_ro(
-          "indptr",
-          [](const rad::SparseF64& s)
-              -> Eigen::Ref<const Eigen::VectorX<std::int64_t>> {
-            return s.indptr;
-          },
-          nb::rv_policy::reference_internal,
-          "CSR row-pointer array (rows + 1), zero-copy view.")
-      .def_prop_ro(
-          "indices",
-          [](const rad::SparseF64& s)
-              -> Eigen::Ref<const Eigen::VectorX<std::int32_t>> {
-            return s.indices;
-          },
-          nb::rv_policy::reference_internal,
-          "CSR column-index array, zero-copy view.")
-      .def_prop_ro(
-          "values",
-          [](const rad::SparseF64& s) -> Eigen::Ref<const Eigen::VectorXd> {
-            return s.values;
-          },
-          nb::rv_policy::reference_internal, "CSR stored values, zero-copy view.")
-      .def_ro("rows", &rad::SparseF64::rows, "Number of rows.")
-      .def_ro("cols", &rad::SparseF64::cols, "Number of columns.")
-      .def("nnz", &rad::SparseF64::nnz, "Number of stored entries.")
-      .def_prop_ro(
-          "shape",
-          [](const rad::SparseF64& s) {
-            return nb::make_tuple(s.rows, s.cols);
-          },
-          "(rows, cols) tuple.");
-
   nb::class_<rad::VfResult>(
       m, "VfResult",
       "Geometric view-factor result: the VF matrix, row sums and statistics.")
       .def_prop_ro(
-          "vf",
-          [](const rad::VfResult& r) -> const rad::SparseF64& { return r.vf; },
-          nb::rv_policy::reference_internal,
-          "View-factor matrix (SparseF64), Nf x (Nf + num_virtual_columns); "
-          "the view to space is the space bucket column, not a row deficit.")
+          "vf", [](const rad::VfResult& r) { return r.vf; },
+          "View-factor matrix as a scipy.sparse.csr_matrix, Nf x (Nf + "
+          "num_virtual_columns); the view to space is the space bucket column, "
+          "not a row deficit.\n\n"
+          "The stored value is the SYMMETRIC, EXTENSIVE G_ij = A_i F_ij = A_j "
+          "F_ji (m^2), and only the UPPER TRIANGLE of the real face columns is "
+          "kept, matching the coupling convention. Both view factors come back "
+          "from the face areas as F_ij = G_ij/A_i and F_ji = G_ij/A_j. The "
+          "three bucket columns are always to the right of the diagonal and "
+          "pass through untriangulated.")
+      .def_prop_ro(
+          "full_vf",
+          [](const rad::VfResult& r) -> std::optional<rad::SparseMatrix> {
+            return r.full_vf;
+          },
+          "The raw, untriangulated G with BOTH triangles, or None unless "
+          "TriangulationConfig.keep_full_matrix asked for it. Entry (i, j) "
+          "holds A_i F_ij and entry (j, i) holds A_j F_ji, so the two "
+          "independent estimates of the same coupling can be compared "
+          "directly.")
       .def_prop_ro(
           "row_sums",
           [](const rad::VfResult& r) -> Eigen::Ref<const Eigen::VectorXd> {
             return r.row_sums;
           },
           nb::rv_policy::reference_internal,
-          "Per-row sums over ALL columns (Nf,) — exactly 1 for rows that "
-          "emitted, i.e. the closure check.")
+          "Per-row sums (Nf,) over ALL columns of the RAW estimate, before "
+          "combining and before thresholding — exactly 1 for rows that "
+          "emitted, i.e. the closure check. Deliberately not the row sums of "
+          "`vf`, which mean nothing of the kind once only one triangle is "
+          "stored.")
       .def_prop_ro(
           "stats",
           [](const rad::VfResult& r) -> const rad::TraceStats& {
@@ -324,13 +362,23 @@ inline void register_radiative(nb::module_& m) {
       .def_ro("band", &rad::ExchangeResult::band,
               "The band the factors were traced for.")
       .def_prop_ro(
-          "factors",
-          [](const rad::ExchangeResult& r) -> const rad::SparseF64& {
-            return r.factors;
+          "factors", [](const rad::ExchangeResult& r) { return r.factors; },
+          "Exchange-factor matrix as a scipy.sparse.csr_matrix, Nf x (Nf + "
+          "num_virtual_columns), same shape and convention as VfResult.vf: the "
+          "UPPER TRIANGLE of the symmetric, extensive H_ij = A_i eps_i B_ij = "
+          "A_j eps_j B_ji (m^2), which is what actually transports heat and "
+          "what the node-level GR is built from. Both absorption factors come "
+          "back as B_ij = H_ij/(A_i eps_i) and B_ji = H_ij/(A_j eps_j).")
+      .def_prop_ro(
+          "full_factors",
+          [](const rad::ExchangeResult& r) -> std::optional<rad::SparseMatrix> {
+            return r.full_factors;
           },
-          nb::rv_policy::reference_internal,
-          "Exchange-factor matrix (SparseF64), Nf x (Nf + "
-          "num_virtual_columns); the full row conserves energy exactly.")
+          "The raw, untriangulated INTENSIVE B with BOTH triangles, or None "
+          "unless TriangulationConfig.keep_full_matrix asked for it. "
+          "Intensive rather than extensive on purpose: a slot with eps = 0 in "
+          "the traced band makes H non-invertible, so the debugging matrix "
+          "carries the form that cannot be reconstructed.")
       .def_prop_ro(
           "stats",
           [](const rad::ExchangeResult& r) -> const rad::TraceStats& {
@@ -408,7 +456,8 @@ inline void register_radiative(nb::module_& m) {
                                std::span<const std::uint32_t>(emitters));
           },
           "acc"_a, "settings"_a, "emitters"_a = std::vector<std::uint32_t>{},
-          nb::call_guard<nb::gil_scoped_release>(),
+          nb::call_guard<nb::gil_scoped_release,
+                         pycanha::bindings::utils::LogDrainGuard>(),
           "Trace settings.rays_per_face rays per emitting face and ADD the "
           "first-hit counts into `acc`. Empty `emitters` => all active faces "
           "emit. Releases the GIL while the GPU works.")
@@ -421,7 +470,8 @@ inline void register_radiative(nb::module_& m) {
                                      std::span<const std::uint32_t>(emitters));
           },
           "acc"_a, "settings"_a, "emitters"_a = std::vector<std::uint32_t>{},
-          nb::call_guard<nb::gil_scoped_release>(),
+          nb::call_guard<nb::gil_scoped_release,
+                         pycanha::bindings::utils::LogDrainGuard>(),
           "Multi-bounce MCRT exchange factors for the accumulator's band "
           "(fixed at accumulator construction), ADDED into `acc`. Same "
           "emitter semantics as accumulate_vf. Releases the GIL.")
@@ -432,7 +482,8 @@ inline void register_radiative(nb::module_& m) {
             self.accumulate_solar(sun, acc, settings);
           },
           "sun"_a, "acc"_a, "settings"_a,
-          nb::call_guard<nb::gil_scoped_release>(),
+          nb::call_guard<nb::gil_scoped_release,
+                         pycanha::bindings::utils::LogDrainGuard>(),
           "Direct + reflected solar absorption for one sun snapshot, ADDED "
           "into `acc`. Every batch in one accumulator must use the same "
           "SolarState (only the seed varies); a different sun needs a fresh "
@@ -493,9 +544,9 @@ inline void register_radiative(nb::module_& m) {
            "Read back + normalize into an ExchangeResult (callable "
            "repeatedly).")
       .def("conservation_error", &rad::ExchangeAccumulator::conservation_error,
-           "Max over rows of |full row sum - rays * scale| in raw fixed-point "
-           "units. Zero by construction, so a nonzero value means a broken "
-           "kernel, not Monte-Carlo noise.");
+           "Max over rows of abs(full row sum - rays * scale) in raw "
+           "fixed-point units. Zero by construction, so a nonzero value means "
+           "a broken kernel, not Monte-Carlo noise.");
 
   nb::class_<rad::SolarAccumulator>(
       m, "SolarAccumulator",
@@ -519,18 +570,35 @@ inline void register_radiative(nb::module_& m) {
         "with a clear message instead of exhausting device memory mid-trace.");
 
   // ---- CPU Gebhart services ----------------------------------------------
+  // Both solves read the VF matrix in the form VfResult stores it: the upper
+  // triangle of the symmetric, extensive G. Face areas are therefore required —
+  // recovering the two view factors from one stored entry is exactly
+  // F_ij = G_ij/A_i and F_ji = G_ij/A_j. A stored entry below the diagonal is
+  // rejected rather than folded in: it would double-count the coupling it
+  // duplicates.
   m.def(
-      "gebhart_factors", &rad::gebhart_factors, "vf"_a, "emissivity"_a,
-      "space_fraction_policy"_a = 1.0,
+      "gebhart_factors",
+      [](const rad::SparseMatrix& vf, const Eigen::VectorXd& emissivity,
+         const Eigen::VectorXd& face_areas, double space_fraction_policy) {
+        return rad::gebhart_factors(
+            vf, emissivity,
+            std::span<const double>(
+                face_areas.data(),
+                static_cast<std::size_t>(face_areas.size())),
+            space_fraction_policy);
+      },
+      "vf"_a, "emissivity"_a, "face_areas"_a, "space_fraction_policy"_a = 1.0,
       "Face-level Gebhart factors B = (I - F R)^-1 F E from a geometric VF "
       "matrix — the diffuse-gray fast path, no re-tracing and no GPU. The "
       "dense solve is limited to ~20k face slots; use gebhart_node_factors "
       "above that. `space_fraction_policy` decides what a row deficit means: "
-      "1.0 a real view to space, 0.0 renormalize the row (closed enclosure).");
+      "1.0 a real view to space, 0.0 renormalize the row (closed enclosure). "
+      "Note that renormalizing partly undoes the reciprocity the stored matrix "
+      "enforces; the two corrections pull against each other.");
 
   m.def(
       "gebhart_node_factors",
-      [](const rad::SparseF64& vf, const Eigen::VectorXd& emissivity,
+      [](const rad::SparseMatrix& vf, const Eigen::VectorXd& emissivity,
          const Eigen::VectorXi& node_numbers, const Eigen::VectorXd& face_areas,
          double space_fraction_policy) {
         return rad::gebhart_node_factors(
@@ -566,30 +634,48 @@ inline void register_radiative(nb::module_& m) {
       "Sorted unique node numbers with NO_NODE (-1) removed — the row/col "
       "labels of the aggregated outputs.");
 
+  nb::class_<rad::AggregateResult>(
+      m, "AggregateResult",
+      "A face->node reduction: the node matrix plus what the reduction could "
+      "not carry over.")
+      .def_prop_ro(
+          "matrix", [](const rad::AggregateResult& r) { return r.matrix; },
+          "Node-level matrix as a scipy.sparse.csr_matrix, rows/cols indexed "
+          "by position in aggregate_nodes().")
+      .def_ro("intra_node_total", &rad::AggregateResult::intra_node_total,
+              "Total dropped onto the node diagonal by the symmetric "
+              "reduction: face pairs whose two faces belong to the same node. "
+              "A node is isothermal by definition, so radiation it exchanges "
+              "with itself transports no heat and the coupling network has no "
+              "slot for it — but a large value means the node is not as "
+              "isothermal as treating it as one node assumes. Always 0 for the "
+              "row/column overload, which has no self-coupling to drop.");
+
   m.def(
       "aggregate_matrix",
-      [](const rad::SparseF64& face_matrix, const Eigen::VectorXi& node_numbers,
-         const Eigen::VectorXd& face_areas) {
+      [](const rad::SparseMatrix& face_matrix,
+         const Eigen::VectorXi& node_numbers) {
         return rad::aggregate_matrix(
             face_matrix,
             std::span<const NodeNum>(node_numbers.data(),
                                      static_cast<std::size_t>(
-                                         node_numbers.size())),
-            std::span<const double>(face_areas.data(),
-                                    static_cast<std::size_t>(
-                                        face_areas.size())));
+                                         node_numbers.size())));
       },
-      "face_matrix"_a, "node_numbers"_a, "face_areas"_a,
-      "Area-weighted face->node reduction of a face matrix (extensive, m^2). "
-      "The virtual bucket columns are DROPPED (they have no column label); "
-      "use the row/column overload to map a bucket to a real node.");
+      "face_matrix"_a, "node_numbers"_a,
+      "Face->node reduction of an EXTENSIVE (m^2) face matrix — the form a VF "
+      "or exchange result stores — canonicalised into the upper triangle. It "
+      "is a plain sum: there is no area weighting to apply, and applying one "
+      "anyway yields a dimensionally meaningless m^4 matrix that still solves "
+      "and still looks plausible. To condense an INTENSIVE matrix, scale its "
+      "rows by the face areas first. The virtual bucket columns are DROPPED "
+      "(they have no column label); use the row/column overload to map a "
+      "bucket to a real node.");
 
   m.def(
       "aggregate_matrix",
-      [](const rad::SparseF64& face_matrix,
+      [](const rad::SparseMatrix& face_matrix,
          const Eigen::VectorXi& row_node_numbers,
-         const Eigen::VectorXi& col_node_numbers,
-         const Eigen::VectorXd& face_areas) {
+         const Eigen::VectorXi& col_node_numbers) {
         return rad::aggregate_matrix(
             face_matrix,
             std::span<const NodeNum>(row_node_numbers.data(),
@@ -597,16 +683,15 @@ inline void register_radiative(nb::module_& m) {
                                          row_node_numbers.size())),
             std::span<const NodeNum>(col_node_numbers.data(),
                                      static_cast<std::size_t>(
-                                         col_node_numbers.size())),
-            std::span<const double>(face_areas.data(),
-                                    static_cast<std::size_t>(
-                                        face_areas.size())));
+                                         col_node_numbers.size())));
       },
       "face_matrix"_a, "row_node_numbers"_a, "col_node_numbers"_a,
-      "face_areas"_a,
       "Rows and columns labeled independently: `col_node_numbers` has one "
       "entry per matrix COLUMN including the virtual buckets, so the space "
-      "bucket can be assigned the space node (or NO_NODE to drop it).");
+      "bucket can be assigned the space node (or NO_NODE to drop it). With two "
+      "label sets there is no triangle to canonicalise into and no diagonal "
+      "that means self-coupling, so every mapped entry is summed where it "
+      "lands and nothing is discarded.");
 
   m.def(
       "aggregate_flux",

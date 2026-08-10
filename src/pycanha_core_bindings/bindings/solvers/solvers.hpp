@@ -11,6 +11,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/utils/logger.hpp"
 #include "pycanha-core/solvers/callback_registry.hpp"
 #include "pycanha-core/solvers/ss.hpp"
 #include "pycanha-core/solvers/sslu.hpp"
@@ -226,7 +227,7 @@ inline void register_solvers(nb::module_ &m) {
            "Create a solver bound to a ThermalMathematicalModel.")
       .def("initialize", &SSLU::initialize,
            "Allocate solver resources and prepare matrices.")
-      .def("solve", &SSLU::solve,
+      .def("solve", &SSLU::solve, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Run the steady-state solve to convergence.")
       .def("deinitialize", &SSLU::deinitialize,
            "Release solver resources.");
@@ -241,7 +242,7 @@ inline void register_solvers(nb::module_ &m) {
            "Create a solver bound to a ThermalMathematicalModel.")
       .def("initialize", &TSCNRLDS::initialize,
            "Allocate solver resources and prepare matrices.")
-      .def("solve", &TSCNRLDS::solve,
+      .def("solve", &TSCNRLDS::solve, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Run the transient simulation over the configured time window.")
       .def("deinitialize", &TSCNRLDS::deinitialize,
            "Release solver resources.");
@@ -255,7 +256,7 @@ inline void register_solvers(nb::module_ &m) {
            "Create a Jacobian solver bound to a ThermalMathematicalModel.")
       .def("initialize", &TSCNRLDS_JACOBIAN::initialize,
            "Allocate solver resources and collect parameter names.")
-      .def("solve", &TSCNRLDS_JACOBIAN::solve,
+      .def("solve", &TSCNRLDS_JACOBIAN::solve, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Run the transient simulation with Jacobian computation.")
       .def("deinitialize", &TSCNRLDS_JACOBIAN::deinitialize,
            "Release solver resources.")

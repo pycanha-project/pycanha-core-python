@@ -44,7 +44,11 @@ using namespace pycanha::bindings::tmm;
 using namespace pycanha::bindings::utils;
 
 NB_MODULE(pycanha_core, m) {
-  register_logging(m);
+  // First: it reads the environment preset that decides how loud the rest of
+  // the import is, and every other module can log while it registers.
+  nb::module_ log_submodule =
+      m.def_submodule("log", "What pycanha records and what it displays");
+  register_logging(log_submodule);
 
   nb::module_ gmm_submodule =
       m.def_submodule("gmm", "Geometrical Mathematical Model");
@@ -124,6 +128,9 @@ NB_MODULE(pycanha_core, m) {
   pycanha::bindings::radiative::register_radiative(radiative_submodule);
 
   // Re-export commonly used enums at the package root for convenience.
+  if (nb::hasattr(log_submodule, "LogLevel")) {
+    m.attr("LogLevel") = log_submodule.attr("LogLevel");
+  }
   if (nb::hasattr(tmm_submodule, "NodeType")) {
     m.attr("NodeType") = tmm_submodule.attr("NodeType");
   }
