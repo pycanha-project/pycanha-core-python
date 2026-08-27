@@ -64,6 +64,7 @@ NB_MODULE(pycanha_core, m) {
   Sphere_b(gmm_submodule);
   Paraboloid_b(gmm_submodule);
   Cube_b(gmm_submodule);
+  TriangularPrism_b(gmm_submodule);
 
   // Materials (shared_ptr-held inside ThermalMesh).
   Color_b(gmm_submodule);

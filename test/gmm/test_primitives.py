@@ -190,3 +190,74 @@ class TestPrimitiveVariant:
         moved = gmm.transform(tri, ct)
         assert isinstance(moved, gmm.Triangle)
         np.testing.assert_allclose(moved.p1, [1.0, 0.0, 0.0], atol=1e-9)
+
+
+class TestQuadrilateral:
+    """A quadrilateral is a bilinear patch on all four corners."""
+
+    @staticmethod
+    def _trapezoid():
+        # Parallel edges of 4 m and 2 m, 2 m apart: area (4 + 2) / 2 * 2 = 6.
+        return gmm.Quadrilateral(
+            np.array([0.0, 0.0, 0.0]),
+            np.array([4.0, 0.0, 0.0]),
+            np.array([3.0, 2.0, 0.0]),
+            np.array([1.0, 2.0, 0.0]),
+        )
+
+    def test_area_is_the_trapezoid_not_the_parallelogram(self):
+        # The p3-free formula would give the 4 x 2 parallelogram, i.e. 8.
+        assert self._trapezoid().surface_area() == pytest.approx(6.0, abs=1e-12)
+
+    def test_p3_is_the_far_corner_of_the_uv_square(self):
+        quad = self._trapezoid()
+        np.testing.assert_allclose(quad.to_cartesian(np.array([1.0, 1.0])), quad.p3,
+                                   atol=1e-12)
+
+    def test_uv_is_normalised(self):
+        quad = self._trapezoid()
+        # Every planar primitive parametrises on [0, 1] x [0, 1] now.
+        np.testing.assert_allclose(quad.to_uv(quad.p2), [1.0, 0.0], atol=1e-9)
+        np.testing.assert_allclose(quad.to_uv(quad.p4), [0.0, 1.0], atol=1e-9)
+
+
+class TestTriangularPrism:
+    """Cutter-only solid, shaped like Cube."""
+
+    @staticmethod
+    def _wedge():
+        # Half-square base with 1 m legs, extruded 2 m along +z: volume 1.
+        return gmm.TriangularPrism(
+            np.array([0.0, 0.0, 0.0]),
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([0.0, 0.0, 2.0]),
+        )
+
+    def test_validity_and_area(self):
+        wedge = self._wedge()
+        assert wedge.is_valid()
+        # Two 0.5 bases, two 1 x 2 walls, one sqrt(2) x 2 hypotenuse wall.
+        assert wedge.surface_area() == pytest.approx(
+            1.0 + 2.0 + 2.0 + 2.0 * np.sqrt(2.0), abs=1e-9
+        )
+
+    def test_extrusion_must_leave_the_base_plane(self):
+        flat = gmm.TriangularPrism(
+            np.array([0.0, 0.0, 0.0]),
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([1.0, 1.0, 0.0]),
+        )
+        assert not flat.is_valid()
+
+    def test_is_accepted_as_a_cutter(self):
+        assert gmm.is_closed_solid(self._wedge())
+
+    def test_uv_round_trips(self):
+        wedge = self._wedge()
+        for face in range(5):
+            uv = np.array([face + 0.4, 0.6])
+            np.testing.assert_allclose(
+                wedge.to_uv(wedge.to_cartesian(uv)), uv, atol=1e-9
+            )

@@ -64,7 +64,7 @@ inline void ThermalMesh_b(nb::module_& m) {
           "UV cut positions along parametric direction 2.")
       .def("is_valid", &ThermalMesh::is_valid,
            "Whether the mesh definition is valid.")
-      .def_prop_ro("num_pair_faces", &ThermalMesh::get_number_of_pair_faces,
+      .def_prop_ro("num_face_pairs", &ThermalMesh::get_number_of_pair_faces,
                    "(len(dir1_mesh) - 1) * (len(dir2_mesh) - 1) face pairs.")
       // --- Activity, one selector per physics ---
       .def_prop_rw("radiative_active_side",
@@ -121,5 +121,5 @@ inline void ThermalMesh_b(nb::module_& m) {
                    &ThermalMesh::set_node2_step,
                    "Back-side per-face node increment.")
       .def("node_of", &ThermalMesh::node_of, "i"_a, "j"_a, "side"_a,
-           "Node number for face (i, j) on side 1 or 2.");
+           "Node number for the face at subdivision (i, j) on side 1 or 2.");
 }

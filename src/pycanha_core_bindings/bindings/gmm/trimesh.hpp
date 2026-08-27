@@ -71,7 +71,10 @@ void bind_trimesh(nb::module_& m, const char* name, const char* doc) {
           "ranges, sorted by first_face_id.")
       .def("np", &TM::np, "Number of vertices (== len(vertices)).")
       .def("nt", &TM::nt, "Number of triangles (== len(triangles)).")
-      .def("nf", &TM::nf, "Number of face slots (max(face_ids) + 2).")
+      .def("nf", &TM::nf,
+           "Number of faces the mesh owns, both sides counted. A cut removes "
+           "triangles but never faces, so a pair whose triangles all went "
+           "away keeps its ids and reports a zero area.")
       .def(
           "astype_float32",
           [](const TM& self) { return self.template cast<float>(); },

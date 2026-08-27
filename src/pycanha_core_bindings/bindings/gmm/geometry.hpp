@@ -63,8 +63,13 @@ inline void Geometry_b(nb::module_& m) {
                 self.children());
           },
           "Immediate children (empty for a GeometryItem).")
-      .def_prop_ro("mesh", &Geometry::mesh, nb::rv_policy::reference_internal,
-                   "Subtree mesh (TriMeshD) in the parent frame; lazily built.")
+      .def_prop_ro(
+          "mesh", &Geometry::mesh, nb::rv_policy::reference_internal,
+          "This subtree resolved with THIS object as the resolution root, "
+          "expressed in the parent frame (TriMeshD). Only cutters inside the "
+          "subtree apply, so the same child legitimately resolves differently "
+          "under two different roots, and a parent's mesh is NOT the "
+          "concatenation of its children's meshes. Lazily built.")
       .def("create_mesh", &Geometry::create_mesh, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Force a rebuild of this object's subtree mesh.")
       .def_prop_ro("owning_model", &Geometry::owning_model,
@@ -109,14 +114,20 @@ inline void GeometryGroup_b(nb::module_& m) {
 inline void GeometryGroupCutted_b(nb::module_& m) {
   nb::class_<GeometryGroupCutted, Geometry>(
       m, "GeometryGroupCutted",
-      "Boolean-subtract group: every target is cut by the union of all "
-      "cutters (each cutter must be a closed-solid GeometryItem).")
+      "Boolean-subtract group: every item in the target subtree is cut by the "
+      "union of all cutters (each cutter must be a closed-solid "
+      "GeometryItem). Targets may be any Geometry, including another cut "
+      "group -- a chain of cuts is resolved as ONE operation on the "
+      "underlying primitive rather than as a cut of a cut, which is "
+      "impossible: a cut result is a triangle soup with no primitive to "
+      "classify against.")
       .def(nb::init<std::string, std::vector<std::shared_ptr<Geometry>>,
                     std::vector<std::shared_ptr<GeometryItem>>,
                     CoordinateTransformation>(),
            "name"_a, "targets"_a, "cutters"_a,
            "transform"_a = CoordinateTransformation(),
-           "Create a cut group from targets and cutters.")
+           "Create a cut group from targets and cutters. A target may be "
+           "an item, a group or another cut group.")
       .def("cut_with", &GeometryGroupCutted::cut_with, "cutter"_a,
            "Add another cutter (must be a closed-solid GeometryItem).")
       .def_prop_ro(
@@ -125,7 +136,7 @@ inline void GeometryGroupCutted_b(nb::module_& m) {
             return pycanha::bindings::gmm::detail::geometry_span_to_list(
                 self.targets());
           },
-          "The target geometries being cut.")
+          "The target geometries; every item beneath them is cut.")
       .def_prop_ro(
           "cutters",
           [](const GeometryGroupCutted& self) {
@@ -142,5 +153,6 @@ inline void GeometryGroupCutted_b(nb::module_& m) {
 
 inline void is_closed_solid_b(nb::module_& m) {
   m.def("is_closed_solid", &is_closed_solid, "primitive"_a,
-        "Whether a primitive is a closed solid usable as a cutter.");
+        "Whether a primitive is a closed solid usable as a cutter: a Sphere, "
+        "Cylinder, Cone, Cube or TriangularPrism.");
 }

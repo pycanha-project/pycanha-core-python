@@ -69,8 +69,11 @@ inline void Rectangle_b(nb::module_& m) {
 inline void Quadrilateral_b(nb::module_& m) {
   auto cls = nb::class_<Quadrilateral>(
       m, "Quadrilateral",
-      "General quadrilateral surface defined by four vertices (may be "
-      "non-planar).");
+      "Planar quadrilateral surface defined by four coplanar vertices in "
+      "cyclic order. It is a bilinear patch on all four corners, not the "
+      "rectangle spanned by the first two edges: direction 1 runs p1 -> p2, "
+      "direction 2 runs p1 -> p4, and P(1, 1) is p3. uv is normalised to "
+      "[0, 1] x [0, 1], as it is for every planar primitive.");
   cls.def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
                    pycanha::Point3D>(),
           "p1"_a, "p2"_a, "p3"_a, "p4"_a,
@@ -259,4 +262,31 @@ inline void Cube_b(nb::module_& m) {
       .def("to_cartesian", &Cube::to_cartesian, "uv"_a)
       .def("normal_at_uv", &Cube::normal_at_uv, "uv"_a)
       .def("surface_area", &Cube::surface_area, "Total surface area.");
+}
+
+inline void TriangularPrism_b(nb::module_& m) {
+  auto cls = nb::class_<TriangularPrism>(
+      m, "TriangularPrism",
+      "Solid triangular prism: the base triangle p1-p2-p3 extruded along "
+      "p4 - p1, which need not be perpendicular to the base. Usable as a "
+      "closed-solid cutter, like Cube, and never meshed: the SHELL form of a "
+      "prism is a different object -- three wall rectangles and no end caps "
+      "-- built by the readers.");
+  cls.def(nb::init<pycanha::Point3D, pycanha::Point3D, pycanha::Point3D,
+                   pycanha::Point3D>(),
+          "p1"_a, "p2"_a, "p3"_a, "p4"_a,
+          "Create a prism from the three base corners and the extrusion "
+          "target. The base is ordered so (p2 - p1) x (p3 - p1) points along "
+          "p4 - p1.")
+      .def_prop_rw("p1", &TriangularPrism::p1, &TriangularPrism::set_p1,
+                   "First base corner, and the origin of the extrusion.")
+      .def_prop_rw("p2", &TriangularPrism::p2, &TriangularPrism::set_p2,
+                   "Second base corner.")
+      .def_prop_rw("p3", &TriangularPrism::p3, &TriangularPrism::set_p3,
+                   "Third base corner.")
+      .def_prop_rw("p4", &TriangularPrism::p4, &TriangularPrism::set_p4,
+                   "Extrusion target: the prism height is p4 - p1.")
+      .def("height", &TriangularPrism::height,
+           "The extrusion vector p4 - p1.");
+  pycanha::bindings::gmm::detail::add_common_surface<TriangularPrism>(cls);
 }

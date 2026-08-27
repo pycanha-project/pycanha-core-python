@@ -73,10 +73,11 @@ inline void register_conduction(nb::module_& m) {
       "Why the builder skipped something or had to approximate it. A "
       "diagnostic never fails the build.")
       .value("CutGeometrySkipped", cond::DiagnosticCode::CutGeometrySkipped,
-             "Geometry inside a boolean-cut group: its face grid no longer "
-             "exists, so the parametric integrals do not apply.")
+             "Geometry inside a boolean-cut group: its face-pair grid no "
+             "longer exists, so the parametric integrals do not apply.")
       .value("UnmeshedPrimitive", cond::DiagnosticCode::UnmeshedPrimitive,
-             "The primitive produces no faces at all (Cube is cutter-only).")
+             "The primitive produces no faces at all (Cube and "
+             "TriangularPrism are cutter-only).")
       .value("InactiveSideSkipped", cond::DiagnosticCode::InactiveSideSkipped,
              "A side carrying node numbers that one of the active-side "
              "selectors excludes: either it takes part in neither physics, and "
@@ -92,13 +93,14 @@ inline void register_conduction(nb::module_& m) {
       .value("MixedBulkOnNode", cond::DiagnosticCode::MixedBulkOnNode,
              "The two sides mapped to one node carry different bulk "
              "materials; the contributions are summed anyway.")
-      .value("TriangleApproximated", cond::DiagnosticCode::TriangleApproximated,
-             "A triangle's fan parametrisation is not orthogonal, so its "
-             "conductors come from the discrete shared-edge fallback rather "
-             "than a closed form.")
+      .value("DiscreteLinkFallback", cond::DiagnosticCode::DiscreteLinkFallback,
+             "The primitive has no closed-form conduction profile -- a "
+             "triangle's fan parametrisation is not orthogonal, a "
+             "quadrilateral's bilinear face pairs vary in width -- so its "
+             "conductors come from the discrete shared-edge path instead.")
       .value("NoNodeNumbers", cond::DiagnosticCode::NoNodeNumbers,
              "The item has no node numbers assigned on any active side.")
-      .value("DegenerateCell", cond::DiagnosticCode::DegenerateCell,
+      .value("DegenerateFacePair", cond::DiagnosticCode::DegenerateFacePair,
              "A face with zero parametric extent, which carries no "
              "conductance.")
       .value("AxisSingularity", cond::DiagnosticCode::AxisSingularity,
@@ -137,7 +139,7 @@ inline void register_conduction(nb::module_& m) {
       .def_ro("conductors_created", &cond::TmmBuildReport::conductors_created,
               "Conductive couplings added to the tmm, at node-pair level "
               "(after aggregation).")
-      .def_ro("cell_links_computed", &cond::TmmBuildReport::cell_links_computed,
+      .def_ro("face_pair_links_computed", &cond::TmmBuildReport::face_pair_links_computed,
               "In-plane links computed at face level, before aggregation.")
       .def_ro("diagnostics", &cond::TmmBuildReport::diagnostics,
               "List of BuildDiagnostic entries.")
@@ -149,11 +151,11 @@ inline void register_conduction(nb::module_& m) {
 
   m.def("build_tmm_from_gmm", &cond::build_tmm_from_gmm, "model"_a,
         "options"_a = cond::TmmBuildOptions{}, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
-        "Populate the model's tmm from its gmm: one node per ACTIVE face slot "
+        "Populate the model's tmm from its gmm: one node per ACTIVE face "
         "that carries a node number — active meaning it takes part in "
         "conduction, radiation or both — plus the in-plane and "
         "through-thickness conductors the conductively active ones imply. A "
-        "node fed only by radiative-only slots therefore exists, with "
+        "node fed only by radiative-only faces therefore exists, with "
         "capacitance and area, but with no conductor attached. Radiative "
         "couplings, "
         "parameters, formulas and thermal data are left untouched. Raises "
@@ -162,26 +164,29 @@ inline void register_conduction(nb::module_& m) {
         "build_tmm_from_gmm.");
 
   // ---- link-level services ------------------------------------------------
-  nb::class_<cond::CellLink>(
-      m, "CellLink",
-      "An in-plane conductor between two adjacent faces of one item. cell_a "
-      "and cell_b are linear indices of the ThermalMesh face grid, "
+  nb::class_<cond::FacePairLink>(
+      m, "FacePairLink",
+      "An in-plane conductor between two adjacent face pairs of one item. "
+      "face_pair_a and face_pair_b are linear indices of the ThermalMesh "
+      "face-pair grid, "
       "k = i + j * (n1 - 1) with direction 1 varying fastest.")
-      .def_ro("cell_a", &cond::CellLink::cell_a, "First face index.")
-      .def_ro("cell_b", &cond::CellLink::cell_b, "Second face index.")
-      .def_ro("side", &cond::CellLink::side,
+      .def_ro("face_pair_a", &cond::FacePairLink::face_pair_a,
+              "First face-pair index.")
+      .def_ro("face_pair_b", &cond::FacePairLink::face_pair_b,
+              "Second face-pair index.")
+      .def_ro("side", &cond::FacePairLink::side,
               "1 or 2: which of the two sheets this conductor belongs to. The "
               "link always joins the SAME side of both faces.")
-      .def_ro("conductance", &cond::CellLink::conductance, "W/K.")
-      .def("__repr__", [](const cond::CellLink& link) {
-        return "<CellLink " + std::to_string(link.cell_a) + "-" +
-               std::to_string(link.cell_b) +
+      .def_ro("conductance", &cond::FacePairLink::conductance, "W/K.")
+      .def("__repr__", [](const cond::FacePairLink& link) {
+        return "<FacePairLink " + std::to_string(link.face_pair_a) + "-" +
+               std::to_string(link.face_pair_b) +
                " side=" + std::to_string(link.side) + ">";
       });
 
   m.def("intra_primitive_links", &cond::intra_primitive_links, "primitive"_a,
         "thermal_mesh"_a, "options"_a = cond::TmmBuildOptions{},
-        "In-plane conductors of one item's face grid: pure geometry and "
+        "In-plane conductors of one item's face-pair grid: pure geometry and "
         "material, no model and no node numbers. A side contributes only when "
         "it is conductively active and carries both a bulk material with "
         "non-zero conductivity and a non-zero thickness.");
@@ -237,8 +242,10 @@ inline void register_conduction(nb::module_& m) {
 
   m.def("profile_of", &cond::profile_of, "primitive"_a,
         "The conduction profile of a primitive, or None when it has no closed "
-        "form: a Triangle (handled by the discrete fallback) or a Cube "
-        "(cutter-only, it never meshes).");
+        "form: a Triangle (its fan parametrisation is not orthogonal) or a "
+        "Quadrilateral (a bilinear patch, so its face pairs vary in width) -- "
+        "both handled by the discrete shared-edge path -- or a Cube or a "
+        "TriangularPrism, which are cutter-only and never mesh.");
 }
 
 }  // namespace pycanha::bindings::conduction
