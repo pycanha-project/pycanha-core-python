@@ -48,7 +48,7 @@ Link-level services
 These compute the conductive couplings of a single primitive without building a
 model. Use them to check the discretization of one shape in isolation.
 
-.. autoclass:: CellLink
+.. autoclass:: FacePairLink
    :members:
    :exclude-members: __dict__, __weakref__, __module__
 

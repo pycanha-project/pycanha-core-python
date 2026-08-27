@@ -38,7 +38,7 @@ namespace gmm = pycanha::gmm;
 // there is no pycanha-specific CSR type to unpack on the Python side.
 inline void register_radiative(nb::module_& m) {
   // ---- virtual bucket columns ---------------------------------------------
-  // Every matrix result appends these columns after the num_face_slots real
+  // Every matrix result appends these columns after the num_faces real
   // ones, so each parcel of emitted energy has an explicit destination and full
   // rows close exactly (a vf row sums to 1; an exchange row conserves energy).
   m.attr("num_virtual_columns") = rad::num_virtual_columns;
@@ -165,21 +165,21 @@ inline void register_radiative(nb::module_& m) {
                                           std::move(face_active)};
           },
           "properties"_a, "face_material"_a, "face_active"_a,
-          "Build from the (M, 6) material properties, the (Nf,) per-slot "
-          "material index (-1 = none) and the (Nf,) per-slot activity mask.")
+          "Build from the (M, 6) material properties, the (Nf,) per-face "
+          "material index (-1 = none) and the (Nf,) per-face activity mask.")
       .def_rw("properties", &rad::MaterialTable::properties,
               "(M, 6) rows [eps_ir, spec_ir, tau_ir, alpha_sol, spec_sol, "
               "tau_sol].")
       .def_rw("face_material", &rad::MaterialTable::face_material,
-              "(Nf,) per-slot row index into `properties`, or -1.")
+              "(Nf,) per-face row index into `properties`, or -1.")
       .def_rw("face_active", &rad::MaterialTable::face_active,
-              "(Nf,) per-slot emission/reception activity.")
+              "(Nf,) per-face emission/reception activity.")
       .def("num_materials",
            [](const rad::MaterialTable& t) { return t.num_materials(); },
            "Number of distinct materials (rows of `properties`).")
-      .def("num_face_slots",
-           [](const rad::MaterialTable& t) { return t.num_face_slots(); },
-           "Number of face slots (rows of `face_material`).");
+      .def("num_faces",
+           [](const rad::MaterialTable& t) { return t.num_faces(); },
+           "Number of faces (rows of `face_material`).");
 
   // One solar snapshot. Everything above a single snapshot (orbits, dates,
   // eclipse sequencing) belongs to the pure-Python layer.
@@ -376,7 +376,7 @@ inline void register_radiative(nb::module_& m) {
           },
           "The raw, untriangulated INTENSIVE B with BOTH triangles, or None "
           "unless TriangulationConfig.keep_full_matrix asked for it. "
-          "Intensive rather than extensive on purpose: a slot with eps = 0 in "
+          "Intensive rather than extensive on purpose: a face with eps = 0 in "
           "the traced band makes H non-invertible, so the debugging matrix "
           "carries the form that cannot be reconstructed.")
       .def_prop_ro(
@@ -388,7 +388,7 @@ inline void register_radiative(nb::module_& m) {
 
   nb::class_<rad::SolarResult>(
       m, "SolarResult",
-      "Per-face-slot absorbed solar power in WATTS (extensive): node mapping "
+      "Per-face absorbed solar power in WATTS (extensive): node mapping "
       "is a plain per-node sum, flux is watts / face area.")
       .def_prop_ro(
           "direct",
@@ -493,8 +493,8 @@ inline void register_radiative(nb::module_& m) {
            "Replace the optical properties WITHOUT rebuilding geometry "
            "(BOL/EOL swaps, sensitivity overrides): the new table must keep "
            "the same face_material mapping and activity.")
-      .def("num_face_slots", &rad::RadiativeScene::num_face_slots,
-           "Total face slots (rows/cols of every result matrix).")
+      .def("num_faces", &rad::RadiativeScene::num_faces,
+           "Total faces (rows/cols of every result matrix).")
       .def("materials", &rad::RadiativeScene::materials,
            nb::rv_policy::reference_internal, "The scene's MaterialTable.")
       .def(
@@ -506,7 +506,8 @@ inline void register_radiative(nb::module_& m) {
                                                   static_cast<Eigen::Index>(
                                                       areas.size())));
           },
-          "Per-slot mesh areas (Nf,); sides share the pair area.");
+          "Per-face mesh areas (Nf,); the two faces of a pair share the "
+          "pair area.");
 
   nb::class_<rad::VfAccumulator>(
       m, "VfAccumulator",
@@ -550,7 +551,7 @@ inline void register_radiative(nb::module_& m) {
 
   nb::class_<rad::SolarAccumulator>(
       m, "SolarAccumulator",
-      "Owns the per-face-slot direct/total solar energy vectors (the solar "
+      "Owns the per-face direct/total solar energy vectors (the solar "
       "kernel is O(Nf): no matrix, no layout choice).")
       .def(
           "__init__",
@@ -590,7 +591,7 @@ inline void register_radiative(nb::module_& m) {
       "vf"_a, "emissivity"_a, "face_areas"_a, "space_fraction_policy"_a = 1.0,
       "Face-level Gebhart factors B = (I - F R)^-1 F E from a geometric VF "
       "matrix — the diffuse-gray fast path, no re-tracing and no GPU. The "
-      "dense solve is limited to ~20k face slots; use gebhart_node_factors "
+      "dense solve is limited to ~20k faces; use gebhart_node_factors "
       "above that. `space_fraction_policy` decides what a row deficit means: "
       "1.0 a real view to space, 0.0 renormalize the row (closed enclosure). "
       "Note that renormalizing partly undoes the reciprocity the stored matrix "

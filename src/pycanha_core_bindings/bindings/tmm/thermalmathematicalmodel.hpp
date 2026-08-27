@@ -218,7 +218,7 @@ inline void register_thermal_model(nb::module_ &m) {
           "Reference to the owned CallbackRegistry.")
       .def("build_tmm_from_gmm", &ThermalModel::build_tmm_from_gmm,
            "options"_a = pycanha::conduction::TmmBuildOptions{}, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
-           "Populate the tmm from the gmm: one node per ACTIVE face slot that "
+           "Populate the tmm from the gmm: one node per ACTIVE face that "
            "carries a node number - active meaning it takes part in "
            "conduction, radiation or both - plus the in-plane and "
            "through-thickness conductors the conductively active ones imply. "

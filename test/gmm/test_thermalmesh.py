@@ -13,18 +13,18 @@ class TestThermalMesh:
         mesh = gmm.ThermalMesh()
         assert mesh.is_valid() is True
         # Default unit square = one face pair.
-        assert mesh.num_pair_faces == 1
+        assert mesh.num_face_pairs == 1
 
     def test_uv_cuts(self):
         mesh = gmm.ThermalMesh()
         mesh.dir1_mesh = [0.0, 0.5, 1.0]
         mesh.dir2_mesh = [0.0, 1.0]
         assert list(mesh.dir1_mesh) == pytest.approx([0.0, 0.5, 1.0])
-        assert mesh.num_pair_faces == 2
+        assert mesh.num_face_pairs == 2
 
     def test_ctor_from_cuts(self):
         mesh = gmm.ThermalMesh([0.0, 0.5, 1.0], [0.0, 0.5, 1.0])
-        assert mesh.num_pair_faces == 4
+        assert mesh.num_face_pairs == 4
 
     def test_per_side_properties(self):
         mesh = gmm.ThermalMesh()

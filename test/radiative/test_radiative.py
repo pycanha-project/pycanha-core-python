@@ -133,7 +133,7 @@ class TestValueTypes:
         face_active = np.array([True, True, False], dtype=bool)
         table = rad.MaterialTable(props, face_material, face_active)
         assert table.num_materials() == 1
-        assert table.num_face_slots() == 3
+        assert table.num_faces() == 3
         np.testing.assert_array_equal(np.asarray(table.face_material), face_material)
         np.testing.assert_array_equal(np.asarray(table.face_active), face_active)
 
@@ -406,7 +406,7 @@ class TestGmmRadiativeEntryPoints:
         model = _build_panel_model()
         table = model.material_table()
         nf = model.mesh.nf()
-        assert table.num_face_slots() == nf
+        assert table.num_faces() == nf
         assert np.asarray(table.properties).shape[1] == 6
         assert np.asarray(table.face_material).shape[0] == nf
         assert np.asarray(table.face_active).shape[0] == nf
@@ -435,7 +435,7 @@ class TestViewFactorEndToEnd:
         scene = rad.RadiativeScene(
             device, model.mesh_parts(), model.material_table()
         )
-        nf = scene.num_face_slots()
+        nf = scene.num_faces()
         assert nf == model.mesh.nf()
         assert np.asarray(scene.face_areas()).shape[0] == nf
 
@@ -486,7 +486,7 @@ class TestViewFactorEndToEnd:
         scene = rad.RadiativeScene(
             device, model.mesh_parts(), model.material_table()
         )
-        nf = scene.num_face_slots()
+        nf = scene.num_faces()
 
         estimate = rad.estimate_memory(scene)
         # u64 cells over nf x (nf + virtual columns).
@@ -532,7 +532,7 @@ class TestExchangeEndToEnd:
         scene = rad.RadiativeScene(
             device, model.mesh_parts(), model.material_table()
         )
-        nf = scene.num_face_slots()
+        nf = scene.num_faces()
         table = scene.materials()
 
         acc = rad.ExchangeAccumulator(scene, rad.Band.IR)
@@ -595,7 +595,7 @@ class TestSolarEndToEnd:
         )
         result = acc.result()
 
-        nf = scene.num_face_slots()
+        nf = scene.num_faces()
         direct = np.asarray(result.direct)
         total = np.asarray(result.total)
         assert direct.shape[0] == nf

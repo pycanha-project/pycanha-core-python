@@ -124,8 +124,13 @@ inline void GeometryModel_b(nb::module_& m) {
           "Split the model mesh into rigid ScenePart pieces for the raytracer: "
           "one part per named geometry in `split` (its subtree, in its local "
           "frame) plus a remainder part in the world frame. Face ids stay "
-          "global across parts.")
+          "global across parts. Built from the same resolution walk as mesh(), "
+          "so a cut group inside a part is cut by exactly the cutters it would "
+          "be in the model, and a split target may sit inside a cut group. A "
+          "cutter reaching across a part boundary is baked into the part it "
+          "cuts -- right for a fixed configuration, wrong for an articulated "
+          "one -- so it is logged.")
       .def("material_table", &GeometryModel::material_table,
-           "Build the per-face-slot MaterialTable (optical material + activity) "
+           "Build the per-face MaterialTable (optical material + activity) "
            "from the per-side ThermalMesh data.");
 }

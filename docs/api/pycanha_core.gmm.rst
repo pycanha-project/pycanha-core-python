@@ -56,6 +56,30 @@ Primitives
    :show-inheritance:
    :exclude-members: __dict__, __weakref__, __module__
 
+.. autoclass:: Paraboloid
+   :members:
+   :special-members: __init__
+   :show-inheritance:
+   :exclude-members: __dict__, __weakref__, __module__
+
+Cutter-only solids
+------------------
+
+These bound a volume and are used to subtract from other geometry. They are
+never meshed, never radiate and never conduct.
+
+.. autoclass:: Cube
+   :members:
+   :special-members: __init__
+   :show-inheritance:
+   :exclude-members: __dict__, __weakref__, __module__
+
+.. autoclass:: TriangularPrism
+   :members:
+   :special-members: __init__
+   :show-inheritance:
+   :exclude-members: __dict__, __weakref__, __module__
+
 Meshes
 ------
 
@@ -94,12 +118,6 @@ Geometry hierarchy
    :exclude-members: __dict__, __weakref__, __module__
 
 .. autoclass:: GeometryItem
-   :members:
-   :special-members: __init__
-   :show-inheritance:
-   :exclude-members: __dict__, __weakref__, __module__
-
-.. autoclass:: GeometryMeshedItem
    :members:
    :special-members: __init__
    :show-inheritance:

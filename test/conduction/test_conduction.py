@@ -48,7 +48,7 @@ class TestBuild:
         assert report.items_processed == 1
         assert report.nodes_created == 2
         assert report.conductors_created == 1
-        assert report.cell_links_computed == 1
+        assert report.face_pair_links_computed == 1
         assert model.tmm.nodes.num_nodes == 2
         # 1 m shared edge over a 0.5 m distance between the two references.
         assert model.tmm.conductive_couplings.get_coupling_value(
@@ -153,7 +153,7 @@ class TestLinks:
         links = cond.intra_primitive_links(_unit_square(), mesh)
         assert len(links) == 1
         assert links[0].side == 1
-        assert {links[0].cell_a, links[0].cell_b} == {0, 1}
+        assert {links[0].face_pair_a, links[0].face_pair_b} == {0, 1}
         assert links[0].conductance == pytest.approx(2.0)
 
     def test_an_inactive_side_produces_no_links(self):
