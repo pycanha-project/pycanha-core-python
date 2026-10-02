@@ -64,7 +64,7 @@ class TestModuleSurface:
         assert rad.TriangulationMode.ConstrainedLeastSquares is not None
 
     def test_virtual_bucket_column_constants(self):
-        # Every matrix result appends these columns after the real face slots.
+        # Every matrix result appends these columns after the real faces.
         assert rad.num_virtual_columns == 3
         offsets = {
             rad.space_column_offset,

@@ -9,21 +9,46 @@ like ``radiative``, so neither of those two depends on the other.
 
 The usual entry point is
 :meth:`pycanha_core.tmm.ThermalModel.build_tmm_from_gmm`, which calls
-:func:`build_tmm_from_gmm` below. Each conductively active face slot that
-carries a node number adds its thermal capacity, its area and its centroid to
-that node. Each pair of adjacent faces gives an in-plane conductive coupling.
-Face pairs whose two sides carry different node numbers also give a
-through-thickness coupling. The conductively active sides are read from
-``conductive_active_side`` of :class:`pycanha_core.gmm.ThermalMesh`.
+:func:`build_tmm_from_gmm` below. Each active face that carries a node number
+adds its thermal capacity and its centroid to that node. Each pair of adjacent
+face pairs gives an in-plane conductive coupling. Face pairs whose two faces
+carry different node numbers also give a through-thickness coupling. The
+conductively active sides are read from ``conductive_active_side`` of
+:class:`pycanha_core.gmm.ThermalMesh`.
+
+Every geometry item builds its own :class:`NetworkPart` from its definition:
+capacities are exact for the geometry, and nothing is triangulated unless the
+item is cut. The parts are merged and written with the bulk calls. On a cut
+item, each face pair's capacity and through-thickness conductance are scaled
+by the fraction of its area that survives the cut, and the in-plane couplings
+touching a cut face pair are removed and reported. The node area ``a`` is not
+set by the build: it is the triangulated area, filled by
+:func:`assign_node_areas`.
 
 Building
 --------
 
 .. autofunction:: build_tmm_from_gmm
 
+.. autofunction:: assign_node_areas
+
 .. autoclass:: TmmBuildOptions
    :members:
    :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
+Network parts
+-------------
+
+The two steps of the build, for inspecting or loading one item's contribution
+on its own.
+
+.. autofunction:: build_network_part
+
+.. autofunction:: commit_network_parts
+
+.. autoclass:: NetworkPart
+   :members:
    :exclude-members: __dict__, __weakref__, __module__
 
 Reports and diagnostics
@@ -53,6 +78,8 @@ model. Use them to check the discretization of one shape in isolation.
    :exclude-members: __dict__, __weakref__, __module__
 
 .. autofunction:: intra_primitive_links
+
+.. autofunction:: for_each_intra_primitive_link
 
 .. autofunction:: through_thickness_conductance
 

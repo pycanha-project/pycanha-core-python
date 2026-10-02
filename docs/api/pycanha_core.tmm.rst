@@ -25,6 +25,26 @@ Enumerations
    :members:
    :undoc-members:
 
+.. autoclass:: NodeAttribute
+   :members:
+   :undoc-members:
+
+.. autoclass:: CouplingMerge
+   :members:
+   :undoc-members:
+
+Bulk calls
+----------
+
+``add_nodes``, ``add_couplings`` and the bulk ``get_values`` / ``set_values``
+take numpy arrays and return a :class:`BulkReport`. Node numbers may be any
+integer dtype; a number outside the int32 range is never wrapped onto another
+node.
+
+.. autoclass:: BulkReport
+   :members:
+   :exclude-members: __dict__, __weakref__, __module__
+
 Nodes
 -----
 

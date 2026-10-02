@@ -111,5 +111,11 @@ def basic_tmm():
 
 
 @pytest.fixture
+def basic_tmm_factory():
+    """Builds fresh copies of the basic_tmm network, for tests that compare two models."""
+    return make_basic_tmm
+
+
+@pytest.fixture
 def basic_tm():
     return make_basic_tm()

@@ -1,5 +1,5 @@
 [requires]
-pycanha-core/0.21
+pycanha-core/0.22
 
 [generators]
 CMakeDeps
@@ -9,6 +9,7 @@ CMakeToolchain
 pycanha-core*:PYCANHA_OPTION_LIBRARY = True
 pycanha-core*:PYCANHA_OPTION_LTO = True
 pycanha-core*:PYCANHA_OPTION_ACTIVATE_ALL_LOGS_OVERRIDE = False
+pycanha-core*:PYCANHA_OPTION_PROFILING = False
 pycanha-core*:PYCANHA_OPTION_DOCS = False
 pycanha-core*:PYCANHA_OPTION_WARNINGS = False
 pycanha-core*:PYCANHA_OPTION_WARNINGS_AS_ERRORS = False

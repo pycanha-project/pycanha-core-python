@@ -1,14 +1,26 @@
 #pragma once
 #include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/function.h>
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
+#include "bindings/tmm/bulk.hpp"
 #include "bindings/utils/logger.hpp"
 #include "pycanha-core/conduction/conduction.hpp"
+#include "pycanha-core/conduction/network_part.hpp"
+#include "pycanha-core/gmm/scene/coordinate_transformation.hpp"
+#include "pycanha-core/gmm/scene/geometry_item.hpp"
+#include "pycanha-core/tmm/thermalmathematicalmodel.hpp"
 #include "pycanha-core/gmm/mesh/thermal_mesh.hpp"
 #include "pycanha-core/gmm/primitives/primitive.hpp"
 #include "pycanha-core/tmm/thermalmodel.hpp"
@@ -72,9 +84,14 @@ inline void register_conduction(nb::module_& m) {
       m, "DiagnosticCode",
       "Why the builder skipped something or had to approximate it. A "
       "diagnostic never fails the build.")
-      .value("CutGeometrySkipped", cond::DiagnosticCode::CutGeometrySkipped,
-             "Geometry inside a boolean-cut group: its face-pair grid no "
-             "longer exists, so the parametric integrals do not apply.")
+      .value("CutFacePairs", cond::DiagnosticCode::CutFacePairs,
+             "Face pairs of an item that other geometry cuts: their capacity "
+             "and through-thickness conductance are scaled by the area that "
+             "survives, and the in-plane conductors touching them are "
+             "removed. Face pairs cut away completely contribute nothing.")
+      .value("UncoupledNodes", cond::DiagnosticCode::UncoupledNodes,
+             "Diffusive nodes left with no conductive coupling once the "
+             "in-plane conductors of cut face pairs were removed.")
       .value("UnmeshedPrimitive", cond::DiagnosticCode::UnmeshedPrimitive,
              "The primitive produces no faces at all (Cube and "
              "TriangularPrism are cutter-only).")
@@ -141,6 +158,12 @@ inline void register_conduction(nb::module_& m) {
               "(after aggregation).")
       .def_ro("face_pair_links_computed", &cond::TmmBuildReport::face_pair_links_computed,
               "In-plane links computed at face level, before aggregation.")
+      .def_ro("face_pairs_cut", &cond::TmmBuildReport::face_pairs_cut,
+              "Face pairs partly cut away (0 < surviving fraction < 1).")
+      .def_ro("face_pairs_removed", &cond::TmmBuildReport::face_pairs_removed,
+              "Face pairs cut away completely.")
+      .def_ro("links_removed", &cond::TmmBuildReport::links_removed,
+              "In-plane links dropped because they touch a cut face pair.")
       .def_ro("diagnostics", &cond::TmmBuildReport::diagnostics,
               "List of BuildDiagnostic entries.")
       .def("__repr__", [](const cond::TmmBuildReport& r) {
@@ -156,12 +179,137 @@ inline void register_conduction(nb::module_& m) {
         "conduction, radiation or both — plus the in-plane and "
         "through-thickness conductors the conductively active ones imply. A "
         "node fed only by radiative-only faces therefore exists, with "
-        "capacitance and area, but with no conductor attached. Radiative "
+        "capacitance, but with no conductor attached. Every item builds its "
+        "own network part from its definition (exact capacities, no "
+        "triangulation unless it is cut); the parts are merged with the bulk "
+        "calls. The node area is not set: see assign_node_areas. Radiative "
         "couplings, "
         "parameters, formulas and thermal data are left untouched. Raises "
         "ValueError when the tmm already holds nodes or conductive couplings "
         "(there is no merge semantics). Same as ThermalModel."
         "build_tmm_from_gmm.");
+
+  // ---- network parts ------------------------------------------------------
+  using pycanha::bindings::tmm::view_of;
+  nb::class_<cond::NetworkPart>(
+      m, "NetworkPart",
+      "One geometry item's contribution to the conduction network, built from "
+      "its definition alone. Nodes are sorted by number; couplings join two "
+      "nodes of the part by their position in node_numbers "
+      "(coupling_index_1 < coupling_index_2), sorted. The arrays are "
+      "read-only views into the part.")
+      .def_prop_ro("node_numbers", [](cond::NetworkPart& self) {
+        return view_of(self.node_numbers, nb::find(self)); }, "Node numbers, sorted.")
+      .def_prop_ro("thermal_capacity", [](cond::NetworkPart& self) {
+        return view_of(self.thermal_capacity, nb::find(self)); }, "Thermal capacity per node [J/K].")
+      .def_prop_ro("position_x", [](cond::NetworkPart& self) {
+        return view_of(self.position_x, nb::find(self)); }, "Node X coordinate, root frame [m].")
+      .def_prop_ro("position_y", [](cond::NetworkPart& self) {
+        return view_of(self.position_y, nb::find(self)); }, "Node Y coordinate, root frame [m].")
+      .def_prop_ro("position_z", [](cond::NetworkPart& self) {
+        return view_of(self.position_z, nb::find(self)); }, "Node Z coordinate, root frame [m].")
+      .def_prop_ro("position_weight", [](cond::NetworkPart& self) {
+        return view_of(self.position_weight, nb::find(self)); },
+        "Weight behind each position (the node's surviving face area over its "
+        "active sides).")
+      .def_prop_ro("coupling_index_1", [](cond::NetworkPart& self) {
+        return view_of(self.coupling_index_1, nb::find(self)); },
+        "First node of each coupling, as a position in node_numbers.")
+      .def_prop_ro("coupling_index_2", [](cond::NetworkPart& self) {
+        return view_of(self.coupling_index_2, nb::find(self)); },
+        "Second node of each coupling, as a position in node_numbers.")
+      .def_prop_ro("conductance", [](cond::NetworkPart& self) {
+        return view_of(self.conductance, nb::find(self)); }, "Conductance of each coupling [W/K].")
+      .def_prop_ro("node_sides", [](cond::NetworkPart& self) {
+        return view_of(self.node_sides, nb::find(self)); },
+        "Which sides fed each node: bit 0 side 1, bit 1 side 2. With "
+        "side_bulk, what tells a node that gathers two different bulk "
+        "materials when parts are merged.")
+      .def_prop_ro("side_bulk", [](const cond::NetworkPart& self) {
+        using Material = std::optional<pycanha::gmm::BulkMaterial>;
+        const auto copy_of = [](const pycanha::gmm::BulkMaterial* material) -> Material {
+          return material == nullptr ? Material{} : Material{*material};
+        };
+        return std::pair<Material, Material>{copy_of(self.side_bulk[0]),
+                                             copy_of(self.side_bulk[1])}; },
+        "Bulk material of side 1 and side 2 (None when the side has none), as "
+        "copies. The part refers to the item's materials: replacing a material "
+        "on the item after building the part invalidates the part.")
+      .def_prop_ro("coupling_node_1", [](const cond::NetworkPart& self) {
+        std::vector<pycanha::NodeNum> nodes;
+        nodes.reserve(self.coupling_index_1.size());
+        for (const std::int32_t local : self.coupling_index_1) {
+          nodes.push_back(self.node_numbers[static_cast<std::size_t>(local)]);
+        }
+        return pycanha::bindings::tmm::to_numpy(std::move(nodes)); },
+        nb::rv_policy::move,
+        "First node number of each coupling (a new array).")
+      .def_prop_ro("coupling_node_2", [](const cond::NetworkPart& self) {
+        std::vector<pycanha::NodeNum> nodes;
+        nodes.reserve(self.coupling_index_2.size());
+        for (const std::int32_t local : self.coupling_index_2) {
+          nodes.push_back(self.node_numbers[static_cast<std::size_t>(local)]);
+        }
+        return pycanha::bindings::tmm::to_numpy(std::move(nodes)); },
+        nb::rv_policy::move,
+        "Second node number of each coupling (a new array).")
+      .def_ro("report", &cond::NetworkPart::report,
+              "This item's share of the build report.")
+      .def("__repr__", [](const cond::NetworkPart& part) {
+        return "<NetworkPart nodes=" + std::to_string(part.node_numbers.size()) +
+               " couplings=" + std::to_string(part.conductance.size()) + ">";
+      });
+
+  m.def(
+      "build_network_part",
+      [](const pycanha::gmm::GeometryItem& item,
+         const pycanha::gmm::CoordinateTransformation& to_root,
+         const cond::TmmBuildOptions& options,
+         const std::optional<pycanha::bindings::tmm::DoubleArray>& surviving_fraction,
+         const std::optional<nb::ndarray<const double, nb::shape<-1, 3>, nb::c_contig,
+                                         nb::device::cpu>>& surviving_centroid) {
+        std::vector<pycanha::Vector3D> centroids;
+        if (surviving_centroid.has_value()) {
+          const std::size_t rows = surviving_centroid->shape(0);
+          const double* data = surviving_centroid->data();
+          centroids.reserve(rows);
+          for (std::size_t row = 0; row < rows; ++row) {
+            centroids.emplace_back(data[3 * row], data[(3 * row) + 1], data[(3 * row) + 2]);
+          }
+        }
+        return cond::build_network_part(
+            item, to_root, options, pycanha::bindings::tmm::span_of(surviving_fraction),
+            centroids);
+      },
+      "item"_a, "to_root"_a, "options"_a = cond::TmmBuildOptions{},
+      "surviving_fraction"_a = nb::none(), "surviving_centroid"_a = nb::none(),
+      nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(), nb::keep_alive<0, 1>(),
+      "The network part of one item: exact capacities, the parametric "
+      "in-plane conductances and the through-thickness ones. to_root places "
+      "the item (it moves the positions only). A cut item passes, per face "
+      "pair, the surviving fraction of its area and the (n, 3) root-frame "
+      "centroid of what survives.");
+
+  m.def(
+      "commit_network_parts",
+      [](pycanha::ThermalMathematicalModel& tmm,
+         const std::vector<const cond::NetworkPart*>& parts,
+         const cond::TmmBuildOptions& options) {
+        return cond::commit_network_parts(tmm, parts, options);
+      },
+      "tmm"_a, "parts"_a, "options"_a = cond::TmmBuildOptions{},
+      nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+      "Merge network parts and write them into an empty tmm with the bulk "
+      "calls (parts are not copied). Parts whose node numbers do not "
+      "interleave are appended as they are; others are merged first. Raises "
+      "ValueError when the tmm already holds nodes or conductive couplings.");
+
+  m.def("assign_node_areas", &cond::assign_node_areas, "model"_a,
+        nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+        "Set the node area `a` from the model's triangulation: the area of "
+        "every triangulated face on an active side, summed per node. This "
+        "triangulates the gmm; build_tmm_from_gmm never sets `a`. Returns a "
+        "BulkReport.");
 
   // ---- link-level services ------------------------------------------------
   nb::class_<cond::FacePairLink>(
@@ -190,6 +338,23 @@ inline void register_conduction(nb::module_& m) {
         "material, no model and no node numbers. A side contributes only when "
         "it is conductively active and carries both a bulk material with "
         "non-zero conductivity and a non-zero thickness.");
+
+  m.def(
+      "for_each_intra_primitive_link",
+      [](const pycanha::gmm::Primitive& primitive, const pycanha::gmm::ThermalMesh& thermal_mesh,
+         const cond::TmmBuildOptions& options,
+         const nb::typed<nb::callable, void(const cond::FacePairLink&)>& links) {
+        // Each link is handed over as a copy: the C++ one is a temporary.
+        cond::for_each_intra_primitive_link(
+            primitive, thermal_mesh, options, [&links](const cond::FacePairLink& link) {
+              links(nb::cast(link, nb::rv_policy::copy));
+            });
+      },
+      "primitive"_a, "thermal_mesh"_a, "options"_a, "links"_a,
+      "The same links as intra_primitive_links, passed one by one to the "
+      "callable `links(link)` as they are computed instead of collected in a "
+      "list. An exception raised by the callable stops the walk and "
+      "propagates.");
 
   m.def("through_thickness_conductance", &cond::through_thickness_conductance,
         "thermal_mesh"_a, "pair_area"_a,

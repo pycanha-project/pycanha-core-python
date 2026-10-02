@@ -9,6 +9,8 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/tmm/bulk.hpp"
+#include "pycanha-core/tmm/bulk.hpp"
 #include "pycanha-core/tmm/conductivecouplings.hpp"
 #include "pycanha-core/tmm/coupling.hpp"
 #include "pycanha-core/tmm/couplingmatrices.hpp"
@@ -130,17 +132,31 @@ inline void CouplingMatrices_b(nb::module_ &m) {
            "Check whether a coupling exists between two internal indices.")
       .def("print_sparse", &CouplingMatrices::print_sparse,
            "Print the sparse matrices to the logger (debug).")
-      .def_static("reserve", &CouplingMatrices::reserve, "nnz"_a,
-                  "Pre-allocate space for the given number of non-zeros.");
+      .def(
+          "append_couplings",
+          [](CouplingMatrices &self, const InArray<std::int32_t> &idx_1,
+             const InArray<std::int32_t> &idx_2, const DoubleArray &values,
+             std::int32_t offset) {
+            const std::vector<CouplingChunk> chunks{
+                CouplingChunk{.idx_1 = span_of(idx_1),
+                              .idx_2 = span_of(idx_2),
+                              .values = span_of(values),
+                              .offset = offset}};
+            return self.append_couplings(chunks);
+          },
+          "idx_1"_a, "idx_2"_a, "values"_a, "offset"_a = 0,
+          "Append couplings by internal node index (offset + idx) straight "
+          "into the storage, in (lower, higher) index order after every "
+          "stored coupling; see Couplings.append_couplings.");
 }
 
 inline void Couplings_b(nb::module_ &m) {
-  nb::class_<Couplings>(m, "Couplings",
+  nb::class_<Couplings> cls(m, "Couplings",
                        "Generic coupling manager using user node numbers.\n\n"
                        "Wraps CouplingMatrices and translates between user node\n"
                        "numbers and internal indices. Supports multiple add\n"
-                       "strategies: overwrite, sum, new-only.")
-      .def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
+                       "strategies: overwrite, sum, new-only.");
+  cls.def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
            "Create a Couplings manager linked to a Nodes container.")
       .def(
           "get_coupling_matrices",
@@ -227,13 +243,14 @@ inline void Couplings_b(nb::module_ &m) {
       .def("get_coupling_from_coupling_idx",
            &Couplings::get_coupling_from_coupling_idx, "idx"_a,
            "Get a Coupling object from a flat coupling index.");
+  bind_bulk_couplings(cls);
 }
 
 inline void ConductiveCouplings_b(nb::module_ &m) {
-  nb::class_<ConductiveCouplings>(m, "ConductiveCouplings",
+  nb::class_<ConductiveCouplings> cls(m, "ConductiveCouplings",
                                   "Container for conductive (linear) couplings GL.\n\n"
-                                  "Heat flow: Q = GL * (T1 - T2).")
-      .def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
+                                  "Heat flow: Q = GL * (T1 - T2).");
+  cls.def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
            "Create conductive couplings linked to a Nodes container.")
       .def("add_coupling",
            nb::overload_cast<Index, Index, double>(
@@ -251,13 +268,19 @@ inline void ConductiveCouplings_b(nb::module_ &m) {
       .def("get_coupling_value", &ConductiveCouplings::get_coupling_value,
            "node_num_1"_a, "node_num_2"_a,
            "Get the conductive coupling value [W/K] between two nodes.");
+  cls.def(
+      "matrices", [](ConductiveCouplings &self) -> CouplingMatrices & { return self.matrices(); },
+      nb::rv_policy::reference_internal,
+      "The underlying CouplingMatrices (the conductive couplings by internal "
+      "node index), as a reference into this container.");
+  bind_bulk_couplings(cls);
 }
 
 inline void RadiativeCouplings_b(nb::module_ &m) {
-  nb::class_<RadiativeCouplings>(m, "RadiativeCouplings",
+  nb::class_<RadiativeCouplings> cls(m, "RadiativeCouplings",
                                  "Container for radiative (T^4) couplings GR.\n\n"
-                                 "Heat flow: Q = GR * sigma * (T1^4 - T2^4).")
-      .def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
+                                 "Heat flow: Q = GR * sigma * (T1^4 - T2^4).");
+  cls.def(nb::init<std::shared_ptr<Nodes>>(), "nodes"_a,
            "Create radiative couplings linked to a Nodes container.")
       .def("add_coupling",
            nb::overload_cast<Index, Index, double>(
@@ -275,6 +298,12 @@ inline void RadiativeCouplings_b(nb::module_ &m) {
       .def("get_coupling_value", &RadiativeCouplings::get_coupling_value,
            "node_num_1"_a, "node_num_2"_a,
            "Get the radiative coupling value [m^2] between two nodes.");
+  cls.def(
+      "matrices", [](RadiativeCouplings &self) -> CouplingMatrices & { return self.matrices(); },
+      nb::rv_policy::reference_internal,
+      "The underlying CouplingMatrices (the radiative couplings by internal "
+      "node index), as a reference into this container.");
+  bind_bulk_couplings(cls);
 }
 
 inline void register_couplings(nb::module_ &m) {

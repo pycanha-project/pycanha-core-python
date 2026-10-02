@@ -7,14 +7,17 @@
 
 #include <nanobind/stl/function.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/map.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
 #include "bindings/utils/logger.hpp"
 #include "pycanha-core/solvers/callback_registry.hpp"
+#include "pycanha-core/solvers/linear_solver.hpp"
 #include "pycanha-core/solvers/ss.hpp"
 #include "pycanha-core/solvers/sslu.hpp"
+#include "pycanha-core/solvers/sslu_cgs.hpp"
 #include "pycanha-core/solvers/solver_registry.hpp"
 #include "pycanha-core/thermaldata/data_model.hpp"
 #include "pycanha-core/solvers/ts.hpp"
@@ -98,6 +101,85 @@ inline PyType_Slot callback_registry_gc_slots[] = {
     {Py_tp_clear, reinterpret_cast<void *>(callback_registry_tp_clear)},
     {0, nullptr}};
 
+// The engine and factorisation enums, with the C++ documentation of every
+// option, plus MKL_ENABLED and default_solver_engine(). Registered before the
+// solver classes, whose engine/solver_type members default to them.
+inline void register_solver_options(nb::module_ &m) {
+  using pycanha::DirectSolverType;
+  using pycanha::IterativeSolverType;
+  using pycanha::SolverEngine;
+
+  nb::enum_<SolverEngine>(m, "SolverEngine",
+                          "Library that factorises the linearised system of a solver.")
+      .value("MKL", SolverEngine::MKL,
+             "Intel MKL PARDISO: multi-threaded supernodal factorisation. Only in "
+             "builds with MKL (MKL_ENABLED).")
+      .value("EIGEN", SolverEngine::EIGEN,
+             "Eigen's sparse solvers: single-threaded, available in every build.");
+
+  nb::enum_<DirectSolverType>(
+      m, "DirectSolverType",
+      "Factorisation of a direct solver (SSLU, TSCNRLDS).\n\n"
+      "Every type computes a complete factorisation: the linear system is solved "
+      "exactly (to rounding) at every pass, so all types give the same "
+      "temperatures and differ only in time and memory. With MKL, models without "
+      "radiative couplings are factorised with Cholesky when the solver allows "
+      "it (allow_cholesky), the others with LU. A type of the other engine makes "
+      "initialize() raise ValueError.")
+      .value("DEFAULT", DirectSolverType::DEFAULT, "TWO_LEVEL with MKL, COLAMD with Eigen.")
+      .value("TWO_LEVEL", DirectSolverType::TWO_LEVEL,
+             "MKL: parallel nested dissection ordering (METIS) and PARDISO's "
+             "two-level factorisation. The default with MKL, and the safe choice.")
+      .value("ONE_LEVEL", DirectSolverType::ONE_LEVEL,
+             "MKL: same ordering, PARDISO's classic one-level factorisation. It "
+             "seems slightly faster on most models, but with MKL 2025.3 it can "
+             "livelock (never finish) with 4 or more threads on some radiative "
+             "models.")
+      .value("MIN_DEGREE", DirectSolverType::MIN_DEGREE,
+             "MKL: minimum degree ordering, one-level factorisation. It seems "
+             "faster on nearly dense models (many radiative couplings per node), "
+             "and its analysis is slow on models where a few nodes are coupled to "
+             "many.")
+      .value("COLAMD", DirectSolverType::COLAMD,
+             "Eigen: SparseLU with COLAMD ordering. The default with Eigen.")
+      .value("AMD", DirectSolverType::AMD,
+             "Eigen: SparseLU with approximate minimum degree ordering. It seems "
+             "faster than COLAMD only on models where a few nodes are coupled to "
+             "many.")
+      .value("LDLT", DirectSolverType::LDLT,
+             "Eigen: SimplicialLDLT with AMD ordering, only for models without "
+             "radiative couplings and only in SSLU. It seems faster than COLAMD on "
+             "small and medium models, and uses less memory.");
+
+  nb::enum_<IterativeSolverType>(
+      m, "IterativeSolverType",
+      "Factorisation of an iterative solver (SSLU_CGS, MKL PARDISO only).\n\n"
+      "After the first factorisation, a changed matrix is first solved with CGS "
+      "(or CG for Cholesky) preconditioned by the previous factors, and only "
+      "refactorised when that iteration fails. The iteration stops at a "
+      "relative residual of 10^-L, with L the tens digit of pardiso_iparm_3 "
+      "(61: 1e-6), and that residual remains in the converged temperatures. "
+      "PARDISO only iterates with its one-level factorisation, hence the two "
+      "types.")
+      .value("MIN_DEGREE", IterativeSolverType::MIN_DEGREE,
+             "Minimum degree ordering. The default. Its analysis is slow on models "
+             "where a few nodes are coupled to many.")
+      .value("ONE_LEVEL", IterativeSolverType::ONE_LEVEL,
+             "Parallel nested dissection ordering (METIS). It seems faster, but "
+             "with MKL 2025.3 it can livelock with 4 or more threads on some "
+             "radiative models; limit mkl_threads to 2 if it does.");
+
+  m.def("default_solver_engine", &pycanha::default_solver_engine,
+        "MKL when the library is built with it, EIGEN otherwise.");
+  m.def("resolve_solver_type", &pycanha::resolve_solver_type, "engine"_a, "solver_type"_a,
+        "The factorisation a solver_type means for an engine: DEFAULT replaced "
+        "by the engine's default (TWO_LEVEL for MKL, COLAMD for Eigen), any "
+        "other type returned unchanged.");
+  // Read from the compiled core rather than from its config header, so it
+  // reports the library this module is actually linked against.
+  m.attr("MKL_ENABLED") = pycanha::default_solver_engine() == SolverEngine::MKL;
+}
+
 inline void register_solvers(nb::module_ &m) {
      using pycanha::CallbackContext;
      using pycanha::CallbackRegistry;
@@ -106,6 +188,7 @@ inline void register_solvers(nb::module_ &m) {
      using pycanha::SolverOutputConfig;
      using pycanha::SolverRegistry;
   using pycanha::SSLU;
+  using pycanha::SSLU_CGS;
   using pycanha::SteadyStateSolver;
   using pycanha::ThermalMathematicalModel;
      using pycanha::ThermalModel;
@@ -114,6 +197,8 @@ inline void register_solvers(nb::module_ &m) {
   using pycanha::TSCNRL;
   using pycanha::TSCNRLDS;
   using pycanha::TSCNRLDS_JACOBIAN;
+
+  register_solver_options(m);
 
   nb::class_<SolverOutputConfig>(
       m, "SolverOutputConfig",
@@ -153,7 +238,21 @@ inline void register_solvers(nb::module_ &m) {
       .def_rw("eps_coupling", &Solver::eps_coupling,
               "Minimum coupling value threshold.")
       .def_rw("pardiso_iparm_3", &Solver::pardiso_iparm_3,
-              "MKL PARDISO iparm[3] parameter (preconditioner control).")
+              "MKL PARDISO iterative step, read by initialize(). 0 (default) "
+              "factorises every changed matrix; 10 * L + 1 first iterates on the "
+              "previous factors down to a relative residual of 10^-L, and that "
+              "residual stays in the result. Only with SSLU_CGS (default 61) or, "
+              "in TSCNRLDS, with the ONE_LEVEL or MIN_DEGREE types.")
+      .def_rw("pardiso_iparm_overrides", &Solver::pardiso_iparm_overrides,
+              "PARDISO iparm entries {zero-based index: value} applied after the "
+              "solver's own settings, read by initialize(). Index 3 replaces "
+              "pardiso_iparm_3. For diagnosis and workarounds; the solver types "
+              "cover the tested configurations. Reading returns a copy: assign a "
+              "whole dict, item assignment on the returned dict has no effect.")
+      .def_rw("mkl_threads", &Solver::mkl_threads,
+              "Threads of the PARDISO calls, 0 for MKL's setting (MKL_NUM_THREADS).")
+      .def_rw("pardiso_verbose", &Solver::pardiso_verbose,
+              "Print PARDISO statistics to standard output.")
       .def_prop_ro("solver_iter",
                    [](const Solver &self) { return self.solver_iter; },
                    "Current solver iteration count.")
@@ -171,8 +270,22 @@ inline void register_solvers(nb::module_ &m) {
                    [](const Solver &self) { return self.solver_converged; },
                    "Whether the solver has converged.");
 
-  nb::class_<SteadyStateSolver, Solver>(m, "SteadyStateSolver",
-                                        "Base class for steady-state (time-independent) solvers.");
+  nb::class_<SteadyStateSolver, Solver>(
+      m, "SteadyStateSolver",
+      "Base class of the steady-state solvers (SSLU, SSLU_CGS).\n\n"
+      "Radiation is linearised around the current temperatures (Newton) and the "
+      "passes repeat until the largest temperature change is below abstol_temp. "
+      "Each pass refactorises only when the matrix values differ from those of "
+      "the last factorisation, so the second pass of a linear model costs one "
+      "solve with the existing factors.")
+      .def_rw("allow_cholesky", &SteadyStateSolver::allow_cholesky,
+              "With the MKL engine, factorise models without radiative couplings "
+              "with Cholesky instead of LU (faster, less memory). With Eigen, "
+              "Cholesky is chosen with DirectSolverType.LDLT instead.")
+      .def_prop_ro("uses_cholesky", &SteadyStateSolver::uses_cholesky,
+                   "Whether the last initialize() chose a Cholesky-type factorisation.")
+      .def_prop_ro("num_factorizations", &SteadyStateSolver::num_factorizations,
+                   "Numerical factorisations done by the last solve().");
 
   nb::class_<TransientSolver, Solver>(m, "TransientSolver",
                                       "Base class for transient (time-dependent) solvers.")
@@ -218,30 +331,99 @@ inline void register_solvers(nb::module_ &m) {
       m, "TSCNRL",
       "Transient Crank-Nicolson solver with radiation linearization.");
 
-  nb::class_<SSLU, SteadyStateSolver>(m, "SSLU",
-                                      "Steady-state solver using sparse LU decomposition.\n\n"
-                                      "Solves the non-linear steady-state thermal equation\n"
-                                      "iteratively using Eigen SparseLU factorization.")
+  nb::class_<SSLU, SteadyStateSolver>(
+      m, "SSLU",
+      "Steady-state solver with a direct factorisation at every Newton pass.\n\n"
+      "Radiation is linearised around the current temperatures, the linear "
+      "system is factorised completely and solved, and the passes repeat until "
+      "the largest temperature change is below abstol_temp. A model without "
+      "radiative couplings is linear: the first pass gives the answer and the "
+      "second only confirms it, reusing the factors.\n\n"
+      "- engine: SolverEngine.MKL (PARDISO, multi-threaded) when the library is "
+      "built with MKL, SolverEngine.EIGEN otherwise.\n"
+      "- solver_type: the factorisation (see DirectSolverType). Every type is a "
+      "complete factorisation, so all of them give the same temperatures.\n"
+      "- allow_cholesky (MKL): Cholesky for models without radiative couplings.\n"
+      "- pardiso_iparm_overrides, mkl_threads, pardiso_verbose: PARDISO "
+      "settings. pardiso_iparm_3 must stay 0: the iterative variant is "
+      "SSLU_CGS.\n\n"
+      "initialize() raises ValueError for a combination that is not available. "
+      "A singular matrix (a group of diffusive nodes with no path to a boundary "
+      "node) is reported as an error and the temperatures are left unchanged.")
       .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
            nb::keep_alive<1, 2>(),
            "Create a solver bound to a ThermalMathematicalModel.")
+      .def_rw("engine", &SSLU::engine,
+              "Library that factorises the system (see SolverEngine).")
+      .def_rw("solver_type", &SSLU::solver_type,
+              "Factorisation (see DirectSolverType).")
       .def("initialize", &SSLU::initialize,
-           "Allocate solver resources and prepare matrices.")
+           nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+           "Build the matrix pattern and analyse it. Raises ValueError for an "
+           "engine/solver_type combination that is not available.")
       .def("solve", &SSLU::solve, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Run the steady-state solve to convergence.")
       .def("deinitialize", &SSLU::deinitialize,
            "Release solver resources.");
 
-  nb::class_<TSCNRLDS, TSCNRL>(
-      m, "TSCNRLDS",
-      "Transient Crank-Nicolson solver with radiation linearization\n"
-      "and direct sparse factorization.\n\n"
-      "Uses MKL PARDISO when available, otherwise Eigen SparseLU.")
+  nb::class_<SSLU_CGS, SteadyStateSolver>(
+      m, "SSLU_CGS",
+      "Steady-state solver that reuses its factors as a preconditioner (MKL "
+      "PARDISO only).\n\n"
+      "Same Newton passes as SSLU. The first pass is factorised completely. In "
+      "the next passes the changed matrix is first solved with CGS (CG for "
+      "Cholesky) preconditioned by the previous factors, and only refactorised "
+      "when that iteration fails. It seems faster than SSLU on radiative "
+      "models, whose matrix changes a little at every pass.\n\n"
+      "The iteration stops at a relative residual of 10^-L, with L the tens "
+      "digit of pardiso_iparm_3 (default 61: L = 6), and that residual stays in "
+      "the converged temperatures. Raise L, or use SSLU, for exact answers.\n\n"
+      "- solver_type: see IterativeSolverType (MIN_DEGREE by default).\n"
+      "- allow_cholesky: Cholesky and CG for models without radiative couplings.\n"
+      "- pardiso_iparm_overrides, mkl_threads, pardiso_verbose: PARDISO "
+      "settings.\n\n"
+      "In a build without MKL, initialize() raises ValueError.")
       .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
            nb::keep_alive<1, 2>(),
            "Create a solver bound to a ThermalMathematicalModel.")
+      .def_rw("solver_type", &SSLU_CGS::solver_type,
+              "Factorisation (see IterativeSolverType).")
+      .def("initialize", &SSLU_CGS::initialize,
+           nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+           "Build the matrix pattern and analyse it. Raises ValueError without "
+           "MKL or for an invalid pardiso_iparm_3.")
+      .def("solve", &SSLU_CGS::solve,
+           nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+           "Run the steady-state solve to convergence.")
+      .def("deinitialize", &SSLU_CGS::deinitialize, "Release solver resources.");
+
+  nb::class_<TSCNRLDS, TSCNRL>(
+      m, "TSCNRLDS",
+      "Transient solver: Crank-Nicolson with the radiation linearised at every "
+      "inner iteration, solved with a sparse direct factorisation.\n\n"
+      "- engine and solver_type: as for SSLU (see SolverEngine and "
+      "DirectSolverType). DEFAULT is the MKL two-level factorisation, or "
+      "Eigen's COLAMD LU without MKL. LDLT is not available: the transient "
+      "matrix is factorised with LU.\n"
+      "- pardiso_iparm_3 (MKL): 0 (default) factorises every changed matrix. "
+      "10 * L + 1 first iterates on the previous factors down to a relative "
+      "residual of 10^-L, and that residual stays in every step. It seems much "
+      "faster per step, since the matrix changes little between steps, and it "
+      "needs ONE_LEVEL or MIN_DEGREE.\n"
+      "- pardiso_iparm_overrides, mkl_threads, pardiso_verbose: PARDISO "
+      "settings.\n\n"
+      "initialize() raises ValueError for a combination that is not available.")
+      .def(nb::init<std::shared_ptr<ThermalMathematicalModel>>(), "tmm"_a,
+           nb::keep_alive<1, 2>(),
+           "Create a solver bound to a ThermalMathematicalModel.")
+      .def_rw("engine", &TSCNRLDS::engine,
+              "Library that factorises the system (see SolverEngine).")
+      .def_rw("solver_type", &TSCNRLDS::solver_type,
+              "Factorisation (see DirectSolverType; LDLT is not available).")
       .def("initialize", &TSCNRLDS::initialize,
-           "Allocate solver resources and prepare matrices.")
+           nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
+           "Allocate solver resources and analyse the matrix pattern. Raises "
+           "ValueError for a combination that is not available.")
       .def("solve", &TSCNRLDS::solve, nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(),
            "Run the transient simulation over the configured time window.")
       .def("deinitialize", &TSCNRLDS::deinitialize,
@@ -300,6 +482,12 @@ inline void register_solvers(nb::module_ &m) {
                          [](SolverRegistry &self) -> SSLU & { return self.sslu(); },
                          nb::rv_policy::reference_internal,
                          "Persistent steady-state sparse-LU solver.")
+               .def_prop_ro(
+                         "sslu_cgs",
+                         [](SolverRegistry &self) -> SSLU_CGS & { return self.sslu_cgs(); },
+                         nb::rv_policy::reference_internal,
+                         "Persistent steady-state solver that iterates on its "
+                         "previous factors (MKL only).")
                .def_prop_ro(
                          "tscnrlds",
                          [](SolverRegistry &self) -> TSCNRLDS & { return self.tscnrlds(); },
