@@ -12,6 +12,7 @@
 
 #include "bindings/conduction/conduction.hpp"
 #include "bindings/gmm/geometry.hpp"
+#include "bindings/gmm/face_pair_geometry.hpp"
 #include "bindings/gmm/geometrymodel.hpp"
 #include "bindings/gmm/materials.hpp"
 #include "bindings/gmm/mesh.hpp"
@@ -75,6 +76,7 @@ NB_MODULE(pycanha_core, m) {
   // ThermalMesh properties that expose it.
   ActiveSide_b(gmm_submodule);
   ThermalMesh_b(gmm_submodule);
+  pycanha::bindings::gmm::FacePairGeometry_b(gmm_submodule);
   CoordinateTransformation_b(gmm_submodule);
   TriMeshD_b(gmm_submodule);
   TriMeshF_b(gmm_submodule);

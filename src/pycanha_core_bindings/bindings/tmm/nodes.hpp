@@ -12,6 +12,8 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/tmm/bulk.hpp"
+#include "pycanha-core/tmm/bulk.hpp"
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/nodes.hpp"
 
@@ -90,14 +92,14 @@ inline void Node_b(nb::module_ &m) {
 }
 
 inline void Nodes_b(nb::module_ &m) {
-  nb::class_<Nodes>(
+  nb::class_<Nodes> cls(
       m, "Nodes",
       "Collection of thermal nodes.\n\n"
       "Stores nodes efficiently using dense vectors for temperature\n"
       "and capacity, and sparse vectors for heat loads and other\n"
       "attributes. Nodes are auto-sorted: diffusive nodes first,\n"
-      "then boundary nodes.")
-      .def(nb::init<>(), "Create an empty Nodes container.")
+      "then boundary nodes.");
+  cls.def(nb::init<>(), "Create an empty Nodes container.")
       .def_prop_rw(
           "estimated_number_of_nodes",
           [](Nodes &self) { return self.estimated_number_of_nodes; },
@@ -123,7 +125,9 @@ inline void Nodes_b(nb::module_ &m) {
             return self.set_type(node_num, static_cast<char>(node_type));
           },
           "node_num"_a, "node_type"_a,
-          "Set the type of a node (DIFFUSIVE or BOUNDARY).")
+          "Set the type of a node (DIFFUSIVE or BOUNDARY). The node moves to "
+          "the other block, which reorders every node and coupling once; for "
+          "many nodes use set_types.")
       .def("get_T", &Nodes::get_T, "node_num"_a,
            "Get temperature [K] of a node.")
       .def("set_T", &Nodes::set_T, "node_num"_a, "value"_a,
@@ -299,9 +303,20 @@ inline void Nodes_b(nb::module_ &m) {
           "node_num"_a,
           "Memory address of the solar absorptivity value for formula "
           "binding.");
+
+  bind_add_nodes(cls, [](Nodes &self, const NodeBatch &batch) { return self.add_nodes(batch); });
+  // After the array overloads: nanobind tries overloads in order, and a list
+  // caster tried first would turn a large numpy array into a Python list
+  // before rejecting it.
+  cls.def(
+      "add_nodes", [](Nodes &self, std::vector<Node> nodes) { self.add_nodes(nodes); }, "nodes"_a,
+      "Add a list of Node objects, one bulk insertion per node type. For large "
+      "models pass arrays instead.");
+  bind_bulk_node_values(cls);
 }
 
 inline void register_nodes(nb::module_ &m) {
+  register_bulk_types(m);
   Node_b(m);
   Nodes_b(m);
 }

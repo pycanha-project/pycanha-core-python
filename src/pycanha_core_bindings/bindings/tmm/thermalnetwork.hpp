@@ -6,6 +6,8 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/tmm/bulk.hpp"
+#include "pycanha-core/tmm/bulk.hpp"
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/thermalnetwork.hpp"
 
@@ -26,10 +28,10 @@ inline void ThermalNetwork_b(nb::module_ &m) {
   using GroupFlowMethod = double (ThermalNetwork::*)(
       const std::vector<pycanha::Index> &, const std::vector<pycanha::Index> &);
 
-  nb::class_<ThermalNetwork>(m, "ThermalNetwork",
+  nb::class_<ThermalNetwork> cls(m, "ThermalNetwork",
                              "Thermal network combining nodes, conductive\n"
-                             "couplings, and radiative couplings.")
-      .def(nb::init<>(), "Create an empty thermal network.")
+                             "couplings, and radiative couplings.");
+  cls.def(nb::init<>(), "Create an empty thermal network.")
       .def(
           nb::init<std::shared_ptr<Nodes>, std::shared_ptr<ConductiveCouplings>,
                    std::shared_ptr<RadiativeCouplings>>(),
@@ -39,6 +41,11 @@ inline void ThermalNetwork_b(nb::module_ &m) {
            "Add a node to the network.")
       .def("remove_node", &ThermalNetwork::remove_node, "node_num"_a,
            "Remove a node from the network by user node number.")
+      .def("synchronize_structure", &ThermalNetwork::synchronize_structure,
+           "Size both coupling containers to the current nodes. Nodes appended "
+           "at the end of their block grow them lazily, and the solvers do this "
+           "at initialize(), so a call is only needed before reading the "
+           "coupling matrices directly.")
       .def_prop_ro(
           "nodes", [](ThermalNetwork &self) -> Nodes & { return self.nodes(); },
           nb::rv_policy::reference_internal,
@@ -78,6 +85,9 @@ inline void ThermalNetwork_b(nb::module_ &m) {
           static_cast<std::shared_ptr<Nodes> (ThermalNetwork::*)() noexcept>(
               &ThermalNetwork::nodes_ptr),
           "Shared pointer to the Nodes container.");
+  bind_add_nodes(cls, [](ThermalNetwork &self, const NodeBatch &batch) {
+    return self.add_nodes(batch);
+  });
 }
 
 inline void register_thermalnetwork(nb::module_ &m) { ThermalNetwork_b(m); }

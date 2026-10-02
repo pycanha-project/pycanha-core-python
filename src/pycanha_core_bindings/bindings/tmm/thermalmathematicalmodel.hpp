@@ -14,6 +14,7 @@
 #include <nanobind/stl/string_view.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/tmm/bulk.hpp"
 #include "bindings/utils/logger.hpp"
 #include "pycanha-core/conduction/options.hpp"
 #include "pycanha-core/globals.hpp"
@@ -27,7 +28,10 @@
 #include "pycanha-core/thermaldata/lookup_table.hpp"
 #include "pycanha-core/thermaldata/sparse_time_series.hpp"
 #include "pycanha-core/thermaldata/thermaldata.hpp"
+#include "pycanha-core/tmm/bulk.hpp"
+#include "pycanha-core/tmm/conductivecouplings.hpp"
 #include "pycanha-core/tmm/coupling.hpp"
+#include "pycanha-core/tmm/radiativecouplings.hpp"
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/thermalmathematicalmodel.hpp"
 #include "pycanha-core/tmm/thermalmodel.hpp"
@@ -222,8 +226,10 @@ inline void register_thermal_model(nb::module_ &m) {
            "carries a node number - active meaning it takes part in "
            "conduction, radiation or both - plus the in-plane and "
            "through-thickness conductors the conductively active ones imply. "
-           "Requires an empty tmm; returns a TmmBuildReport. See "
-           "pycanha_core.conduction.");
+           "Capacities are exact for the geometry; nothing is triangulated "
+           "unless an item is cut. The node area is not set: see "
+           "pycanha_core.conduction.assign_node_areas. Requires an empty tmm; "
+           "returns a TmmBuildReport. See pycanha_core.conduction.");
 }
 
 inline void register_thermal_mathematical_model(nb::module_ &m) {
@@ -263,14 +269,14 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
       .def_rw("verbose", &ESATANReader::verbose,
               "Enable verbose logging during file reading.");
 
-  nb::class_<ThermalMathematicalModel>(
+  nb::class_<ThermalMathematicalModel> cls(
       m, "ThermalMathematicalModel",
       "Top-level thermal mathematical model.\n\n"
       "Aggregates a thermal network (nodes and couplings),\n"
       "parameters, formulas, thermal data tables, and\n"
       "solver callbacks. Non-copyable.",
-      nb::type_slots(tmm_gc_slots))
-      .def(nb::init<std::string>(), "model_name"_a,
+      nb::type_slots(tmm_gc_slots));
+  cls.def(nb::init<std::string>(), "model_name"_a,
            "Create a model with an empty network.")
       .def(nb::init<std::string, std::shared_ptr<ThermalNetwork>,
                     std::shared_ptr<Parameters>, std::shared_ptr<Formulas>,
@@ -531,6 +537,49 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
               &ThermalMathematicalModel::
                   python_extern_callback_transient_after_timestep,
               "Python callable invoked after each transient timestep.");
+
+  bind_add_nodes(cls, [](ThermalMathematicalModel &self, const NodeBatch &batch) {
+    return self.add_nodes(batch);
+  });
+  // The same bulk calls as conductive_couplings.add_couplings and
+  // radiative_couplings.add_couplings; the int64 overloads come first, see
+  // bind_add_nodes.
+  cls.def(
+         "add_conductive_couplings",
+         [](ThermalMathematicalModel &self, const InArray<std::int64_t> &node_1,
+            const InArray<std::int64_t> &node_2, const DoubleArray &values, CouplingMerge merge) {
+           return self.conductive_couplings().add_couplings(span_of(node_1), span_of(node_2),
+                                                            span_of(values), merge);
+         },
+         "node_1"_a, "node_2"_a, "values"_a, "merge"_a = CouplingMerge::OVERWRITE,
+         nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(), add_couplings_doc)
+      .def(
+          "add_conductive_couplings",
+          [](ThermalMathematicalModel &self, const InArray<NodeNum> &node_1,
+             const InArray<NodeNum> &node_2, const DoubleArray &values, CouplingMerge merge) {
+            return self.add_conductive_couplings(span_of(node_1), span_of(node_2),
+                                                 span_of(values), merge);
+          },
+          "node_1"_a, "node_2"_a, "values"_a, "merge"_a = CouplingMerge::OVERWRITE,
+          nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(), add_couplings_doc)
+      .def(
+          "add_radiative_couplings",
+          [](ThermalMathematicalModel &self, const InArray<std::int64_t> &node_1,
+             const InArray<std::int64_t> &node_2, const DoubleArray &values, CouplingMerge merge) {
+            return self.radiative_couplings().add_couplings(span_of(node_1), span_of(node_2),
+                                                            span_of(values), merge);
+          },
+          "node_1"_a, "node_2"_a, "values"_a, "merge"_a = CouplingMerge::OVERWRITE,
+          nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(), add_couplings_doc)
+      .def(
+          "add_radiative_couplings",
+          [](ThermalMathematicalModel &self, const InArray<NodeNum> &node_1,
+             const InArray<NodeNum> &node_2, const DoubleArray &values, CouplingMerge merge) {
+            return self.add_radiative_couplings(span_of(node_1), span_of(node_2),
+                                                span_of(values), merge);
+          },
+          "node_1"_a, "node_2"_a, "values"_a, "merge"_a = CouplingMerge::OVERWRITE,
+          nb::call_guard<pycanha::bindings::utils::LogDrainGuard>(), add_couplings_doc);
 
   register_thermal_model(m);
 }
