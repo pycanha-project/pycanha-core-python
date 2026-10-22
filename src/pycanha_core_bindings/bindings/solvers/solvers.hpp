@@ -13,6 +13,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "bindings/utils/logger.hpp"
+#include "pycanha-core/solvers/accelerate.hpp"
 #include "pycanha-core/solvers/callback_registry.hpp"
 #include "pycanha-core/solvers/linear_solver.hpp"
 #include "pycanha-core/solvers/ss.hpp"
@@ -115,18 +116,23 @@ inline void register_solver_options(nb::module_ &m) {
              "Intel MKL PARDISO: multi-threaded supernodal factorisation. Only in "
              "builds with MKL (MKL_ENABLED).")
       .value("EIGEN", SolverEngine::EIGEN,
-             "Eigen's sparse solvers: single-threaded, available in every build.");
+             "Eigen's sparse solvers: single-threaded, available in every build.")
+      .value("ACCELERATE", SolverEngine::ACCELERATE,
+             "Apple Accelerate: multi-threaded supernodal factorisation. Only in "
+             "macOS builds with Accelerate, on macOS 15.5 or newer "
+             "(ACCELERATE_ENABLED).");
 
   nb::enum_<DirectSolverType>(
       m, "DirectSolverType",
       "Factorisation of a direct solver (SSLU, TSCNRLDS).\n\n"
       "Every type computes a complete factorisation: the linear system is solved "
       "exactly (to rounding) at every pass, so all types give the same "
-      "temperatures and differ only in time and memory. With MKL, models without "
-      "radiative couplings are factorised with Cholesky when the solver allows "
-      "it (allow_cholesky), the others with LU. A type of the other engine makes "
-      "initialize() raise ValueError.")
-      .value("DEFAULT", DirectSolverType::DEFAULT, "TWO_LEVEL with MKL, COLAMD with Eigen.")
+      "temperatures and differ only in time and memory. With MKL and "
+      "Accelerate, models without radiative couplings are factorised with "
+      "Cholesky when the solver allows it (allow_cholesky), the others with LU. "
+      "A type of another engine makes initialize() raise ValueError.")
+      .value("DEFAULT", DirectSolverType::DEFAULT,
+             "TWO_LEVEL with MKL, COLAMD with Eigen, METIS with Accelerate.")
       .value("TWO_LEVEL", DirectSolverType::TWO_LEVEL,
              "MKL: parallel nested dissection ordering (METIS) and PARDISO's "
              "two-level factorisation. The default with MKL, and the safe choice.")
@@ -145,7 +151,10 @@ inline void register_solver_options(nb::module_ &m) {
       .value("AMD", DirectSolverType::AMD,
              "Eigen: SparseLU with approximate minimum degree ordering. It seems "
              "faster than COLAMD only on models where a few nodes are coupled to "
-             "many.")
+             "many. Accelerate: the same ordering for its LU or Cholesky.")
+      .value("METIS", DirectSolverType::METIS,
+             "Accelerate: nested dissection ordering for its LU or Cholesky. The "
+             "default with Accelerate.")
       .value("LDLT", DirectSolverType::LDLT,
              "Eigen: SimplicialLDLT with AMD ordering, only for models without "
              "radiative couplings and only in SSLU. It seems faster than COLAMD on "
@@ -170,14 +179,16 @@ inline void register_solver_options(nb::module_ &m) {
              "radiative models; limit mkl_threads to 2 if it does.");
 
   m.def("default_solver_engine", &pycanha::default_solver_engine,
-        "MKL when the library is built with it, EIGEN otherwise.");
+        "MKL when the library is built with it, then ACCELERATE when available, "
+        "EIGEN otherwise.");
   m.def("resolve_solver_type", &pycanha::resolve_solver_type, "engine"_a, "solver_type"_a,
         "The factorisation a solver_type means for an engine: DEFAULT replaced "
-        "by the engine's default (TWO_LEVEL for MKL, COLAMD for Eigen), any "
-        "other type returned unchanged.");
+        "by the engine's default (TWO_LEVEL for MKL, COLAMD for Eigen, METIS "
+        "for Accelerate), any other type returned unchanged.");
   // Read from the compiled core rather than from its config header, so it
   // reports the library this module is actually linked against.
   m.attr("MKL_ENABLED") = pycanha::default_solver_engine() == SolverEngine::MKL;
+  m.attr("ACCELERATE_ENABLED") = pycanha::accelerate_available();
 }
 
 inline void register_solvers(nb::module_ &m) {
