@@ -8,6 +8,9 @@ solvers = pcc.solvers
 tmm = pcc.tmm
 
 requires_mkl = pytest.mark.skipif(not solvers.MKL_ENABLED, reason="needs a build with MKL")
+requires_accelerate = pytest.mark.skipif(
+    not solvers.ACCELERATE_ENABLED, reason="needs Accelerate (macOS 15.5 or newer)"
+)
 
 ENGINE_TYPES = [
     (solvers.SolverEngine.EIGEN, solvers.DirectSolverType.COLAMD),
@@ -15,6 +18,12 @@ ENGINE_TYPES = [
     pytest.param(solvers.SolverEngine.MKL, solvers.DirectSolverType.TWO_LEVEL, marks=requires_mkl),
     pytest.param(solvers.SolverEngine.MKL, solvers.DirectSolverType.ONE_LEVEL, marks=requires_mkl),
     pytest.param(solvers.SolverEngine.MKL, solvers.DirectSolverType.MIN_DEGREE, marks=requires_mkl),
+    pytest.param(
+        solvers.SolverEngine.ACCELERATE, solvers.DirectSolverType.METIS, marks=requires_accelerate
+    ),
+    pytest.param(
+        solvers.SolverEngine.ACCELERATE, solvers.DirectSolverType.AMD, marks=requires_accelerate
+    ),
 ]
 
 # Chain 1-2-3-4 to the boundary node 100, heat into node 1. Each link carries
@@ -67,16 +76,23 @@ class TestModuleOptions:
             "COLAMD",
             "AMD",
             "LDLT",
+            "METIS",
         }
         assert {member.name for member in solvers.IterativeSolverType} == {
             "MIN_DEGREE",
             "ONE_LEVEL",
         }
-        assert {member.name for member in solvers.SolverEngine} == {"MKL", "EIGEN"}
+        assert {member.name for member in solvers.SolverEngine} == {"MKL", "EIGEN", "ACCELERATE"}
 
     def test_default_engine_follows_the_build(self):
         assert isinstance(solvers.MKL_ENABLED, bool)
-        expected = solvers.SolverEngine.MKL if solvers.MKL_ENABLED else solvers.SolverEngine.EIGEN
+        assert isinstance(solvers.ACCELERATE_ENABLED, bool)
+        if solvers.MKL_ENABLED:
+            expected = solvers.SolverEngine.MKL
+        elif solvers.ACCELERATE_ENABLED:
+            expected = solvers.SolverEngine.ACCELERATE
+        else:
+            expected = solvers.SolverEngine.EIGEN
         assert solvers.default_solver_engine() == expected
 
     def test_resolve_solver_type(self):
@@ -89,6 +105,9 @@ class TestModuleOptions:
         )
         assert resolve(solvers.SolverEngine.EIGEN, solvers.DirectSolverType.LDLT) == (
             solvers.DirectSolverType.LDLT
+        )
+        assert resolve(solvers.SolverEngine.ACCELERATE, solvers.DirectSolverType.DEFAULT) == (
+            solvers.DirectSolverType.METIS
         )
 
     def test_solver_defaults(self, basic_tmm):
@@ -165,6 +184,15 @@ class TestSSLUOptions:
         with pytest.raises(ValueError):
             solver.initialize()
 
+    @pytest.mark.skipif(
+        solvers.ACCELERATE_ENABLED, reason="only a build without Accelerate refuses it"
+    )
+    def test_accelerate_refused_without_accelerate(self, basic_tmm):
+        solver = solvers.SSLU(basic_tmm)
+        solver.engine = solvers.SolverEngine.ACCELERATE
+        with pytest.raises(ValueError):
+            solver.initialize()
+
     @pytest.mark.skipif(solvers.MKL_ENABLED, reason="only a build without MKL refuses MKL")
     def test_mkl_refused_without_mkl(self, basic_tmm):
         solver = solvers.SSLU(basic_tmm)
@@ -172,7 +200,10 @@ class TestSSLUOptions:
         with pytest.raises(ValueError):
             solver.initialize()
 
-    @requires_mkl
+    @pytest.mark.skipif(
+        not (solvers.MKL_ENABLED or solvers.ACCELERATE_ENABLED),
+        reason="needs MKL or Accelerate (the default engine picks Cholesky)",
+    )
     def test_cholesky_only_without_radiation(self, basic_tmm):
         conduction = solvers.SSLU(make_chain_tmm())
         conduction.initialize()
