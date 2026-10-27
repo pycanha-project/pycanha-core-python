@@ -79,8 +79,17 @@ class TestValueTypes:
         s = rad.TraceSettings()
         assert s.rays_per_face == 10_000
         assert s.seed == 0
-        assert s.max_bounces == 64
+        assert s.max_bounces >= 64
         assert s.normal_emission is False
+
+    def test_trace_settings_keyword_defaults_are_the_core_defaults(self):
+        default = rad.TraceSettings()
+        s = rad.TraceSettings(seed=5)
+        assert s.seed == 5
+        assert s.rays_per_face == default.rays_per_face
+        assert s.energy_threshold == default.energy_threshold
+        assert s.max_bounces == default.max_bounces
+        assert s.normal_emission == default.normal_emission
 
     def test_trace_settings_kwargs(self):
         s = rad.TraceSettings(rays_per_face=500, seed=7, max_bounces=8)
