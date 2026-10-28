@@ -57,6 +57,15 @@ inline void register_radiative(nb::module_& m) {
       .value("IR", rad::Band::IR)
       .value("Solar", rad::Band::Solar);
 
+  nb::enum_<rad::SolarSource>(
+      m, "SolarSource", "Where the solar kernel's rays start.")
+      .value("FaceSamples", rad::SolarSource::FaceSamples,
+             "rays_per_face sample points on every emitting face, each with "
+             "a shadow ray toward the sun (the default).")
+      .value("SunPlane", rad::SolarSource::SunPlane,
+             "rays_per_face rays in total from a plane square to the sun "
+             "covering the parts: rays go only where the sun reaches.");
+
   nb::enum_<rad::AccumLayout>(
       m, "AccumLayout",
       "Accumulator buffer layout. Both layouts yield bit-identical results for "
@@ -211,13 +220,17 @@ inline void register_radiative(nb::module_& m) {
           "__init__",
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
-             std::uint32_t max_bounces, bool normal_emission) {
-            new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces, normal_emission};
+             std::uint32_t max_bounces, bool normal_emission,
+             rad::SolarSource solar_source) {
+            new (self) rad::TraceSettings{rays_per_face,    seed,
+                                          energy_threshold, max_bounces,
+                                          normal_emission,  solar_source};
           },
           "rays_per_face"_a = 10'000, "seed"_a = 0,
           "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "normal_emission"_a = false, "Build trace settings.")
+          "normal_emission"_a = false,
+          "solar_source"_a = rad::SolarSource::FaceSamples,
+          "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
@@ -228,7 +241,10 @@ inline void register_radiative(nb::module_& m) {
               "Hard safety bound on the bounce loop.")
       .def_rw("normal_emission", &rad::TraceSettings::normal_emission,
               "Emit along the face normal instead of the cosine-weighted "
-              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).");
+              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).")
+      .def_rw("solar_source", &rad::TraceSettings::solar_source,
+              "Solar ray origin: SolarSource.FaceSamples (default) or "
+              "SolarSource.SunPlane (rays_per_face is then the total).");
 
   // Before AccumConfig: it appears there as a default argument value, and
   // nanobind converts a default to Python when the signature is defined rather

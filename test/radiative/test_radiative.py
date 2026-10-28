@@ -96,6 +96,13 @@ class TestValueTypes:
         s.normal_emission = False
         assert s.normal_emission is False
 
+    def test_trace_settings_solar_source(self):
+        assert rad.TraceSettings().solar_source == rad.SolarSource.FaceSamples
+        s = rad.TraceSettings(rays_per_face=1 << 20, solar_source=rad.SolarSource.SunPlane)
+        assert s.solar_source == rad.SolarSource.SunPlane
+        s.solar_source = rad.SolarSource.FaceSamples
+        assert s.solar_source == rad.SolarSource.FaceSamples
+
     def test_solar_state(self):
         sun = rad.SolarState(np.array([0.0, 0.0, -1.0]), 1361.0)
         np.testing.assert_allclose(np.asarray(sun.direction), [0.0, 0.0, -1.0])
