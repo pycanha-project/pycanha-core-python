@@ -115,15 +115,18 @@ class TestValueTypes:
         assert t.mode == rad.TriangulationMode.RayDensity
         assert t.exponent == pytest.approx(0.4)
         assert t.keep_full_matrix is False
+        assert t.area_weights is False
 
     def test_triangulation_config_travels_into_accum_config(self):
         t = rad.TriangulationConfig(
             mode=rad.TriangulationMode.ConstrainedLeastSquares,
             keep_full_matrix=True,
+            area_weights=True,
         )
         c = rad.AccumConfig(triangulation=t)
         assert c.triangulation.mode == rad.TriangulationMode.ConstrainedLeastSquares
         assert c.triangulation.keep_full_matrix is True
+        assert c.triangulation.area_weights is True
         c.triangulation = rad.TriangulationConfig(exponent=1.0)
         assert c.triangulation.exponent == pytest.approx(1.0)
 

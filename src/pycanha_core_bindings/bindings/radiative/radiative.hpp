@@ -240,12 +240,13 @@ inline void register_radiative(nb::module_& m) {
       .def(
           "__init__",
           [](rad::TriangulationConfig* self, rad::TriangulationMode mode,
-             double exponent, bool keep_full_matrix) {
-            new (self)
-                rad::TriangulationConfig{mode, exponent, keep_full_matrix};
+             double exponent, bool keep_full_matrix, bool area_weights) {
+            new (self) rad::TriangulationConfig{mode, exponent,
+                                                keep_full_matrix, area_weights};
           },
           "mode"_a = rad::TriangulationMode::RayDensity, "exponent"_a = 0.4,
-          "keep_full_matrix"_a = false, "Build a triangulation configuration.")
+          "keep_full_matrix"_a = false, "area_weights"_a = false,
+          "Build a triangulation configuration.")
       .def_rw("mode", &rad::TriangulationConfig::mode,
               "Which combination rule to apply.")
       .def_rw("exponent", &rad::TriangulationConfig::exponent,
@@ -254,7 +255,13 @@ inline void register_radiative(nb::module_& m) {
       .def_rw("keep_full_matrix", &rad::TriangulationConfig::keep_full_matrix,
               "Also keep the raw, untriangulated matrix (both triangles) "
               "alongside the combined upper triangle. Doubles the result "
-              "memory; for debugging a model, not for production runs.");
+              "memory; for debugging a model, not for production runs.")
+      .def_rw("area_weights", &rad::TriangulationConfig::area_weights,
+              "RayDensity only. False: the weight's u = A_i/N_i reads the rays "
+              "each face emitted. True: the mean rays of the emitting faces, "
+              "so the weight follows the areas alone and an uneven ray "
+              "allocation changes the noise of the result, not its "
+              "expectation. The same weights on a uniform trace.");
 
   nb::class_<rad::AccumConfig>(
       m, "AccumConfig",
