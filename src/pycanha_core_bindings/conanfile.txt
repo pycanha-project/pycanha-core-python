@@ -19,3 +19,8 @@ pycanha-core*:PYCANHA_OPTION_CLANG_TIDY = False
 pycanha-core*:PYCANHA_OPTION_CPPCHECK = False
 pycanha-core*:PYCANHA_OPTION_SANITIZE_ADDR = False
 pycanha-core*:PYCANHA_OPTION_SANITIZE_UNDEF = False
+# The radiative engine only computes: no window-system surfaces, so no X11 or
+# Wayland headers (with them on, volk needs the system X11 development
+# packages on Linux). The options exist only on Linux and FreeBSD.
+volk/*:with_x11 = False
+volk/*:with_wayland = False

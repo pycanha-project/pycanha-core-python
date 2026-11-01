@@ -126,17 +126,30 @@ def test_set_and_unset_by_name(basic_tmm):
 
 
 def test_init_attributes_are_frozen_while_initialised():
+    # Eigen is in every build, so the same fields apply on every platform.
     solver = solvers.steady.SteadyState(make_chain_tmm())
-    solver.initialize()
-    with pytest.raises(RuntimeError, match="backend"):
-        solver.backend = solvers.Backend.EIGEN
-    with pytest.raises(RuntimeError):
-        solver.pardiso.level = solvers.PardisoLevel.ONE_LEVEL
-    with pytest.raises(RuntimeError):
-        solver.set_settings(solvers.Settings(storage=solvers.Storage.DENSE))
-    solver.deinitialize()
     solver.backend = solvers.Backend.EIGEN
-    assert solver.backend == solvers.Backend.EIGEN
+    solver.storage = solvers.Storage.SPARSE
+    solver.initialize()
+    with pytest.raises(RuntimeError, match="storage"):
+        solver.storage = solvers.Storage.DENSE
+    with pytest.raises(RuntimeError, match="eigen.ordering"):
+        solver.eigen.ordering = solvers.EigenOrdering.AMD
+    with pytest.raises(RuntimeError):
+        solver.set_settings(solvers.Settings(backend=solvers.Backend.EIGEN, storage=solvers.Storage.DENSE))
+    solver.deinitialize()
+    solver.storage = solvers.Storage.DENSE
+    assert solver.storage == solvers.Storage.DENSE
+
+
+def test_a_group_the_backend_does_not_use_can_change_while_initialised():
+    # A field counts as changed only if it applies before and after: the
+    # PARDISO settings do nothing to an Eigen solver.
+    solver = solvers.steady.SteadyState(make_chain_tmm())
+    solver.backend = solvers.Backend.EIGEN
+    solver.initialize()
+    solver.pardiso.level = solvers.PardisoLevel.ONE_LEVEL
+    assert solver.pardiso.level == solvers.PardisoLevel.ONE_LEVEL
 
 
 def test_live_attributes_change_while_initialised():
