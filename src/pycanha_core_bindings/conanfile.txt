@@ -1,5 +1,11 @@
 [requires]
 pycanha-core/0.24
+# The volk recipe revision pycanha-core 0.24 was tested with. The later
+# revision exports window-system defines (X11/Wayland on Linux, which then needs
+# the system X11 packages; Win32 on Windows, which pulls <windows.h> and its
+# min/max macros into the core). The radiative engine only computes and needs
+# none of them.
+volk/1.4.357.0#4469847ca407a836f5927bbecacad8bf
 
 [generators]
 CMakeDeps
@@ -19,8 +25,3 @@ pycanha-core*:PYCANHA_OPTION_CLANG_TIDY = False
 pycanha-core*:PYCANHA_OPTION_CPPCHECK = False
 pycanha-core*:PYCANHA_OPTION_SANITIZE_ADDR = False
 pycanha-core*:PYCANHA_OPTION_SANITIZE_UNDEF = False
-# The radiative engine only computes: no window-system surfaces, so no X11 or
-# Wayland headers (with them on, volk needs the system X11 development
-# packages on Linux). The options exist only on Linux and FreeBSD.
-volk/*:with_x11 = False
-volk/*:with_wayland = False
