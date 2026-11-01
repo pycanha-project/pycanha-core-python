@@ -574,6 +574,56 @@ class TestExchangeEndToEnd:
         acc.reset()
         assert acc.result().stats.total_rays == 0
 
+    def test_node_accumulator_matches_the_aggregated_faces(self):
+        device = rad.Device.create()
+        model = _build_facing_panels_model()
+        scene = rad.RadiativeScene(
+            device, model.mesh_parts(), model.material_table()
+        )
+        nf = scene.num_faces()
+        assert nf == 4
+        # Panel A's sides in two nodes, panel B's inner side in a third, its
+        # outer side in none.
+        node_numbers = np.array([10, 11, 20, -1], dtype=np.int32)
+        settings = rad.TraceSettings(rays_per_face=4096, seed=1)
+
+        faces = rad.ExchangeAccumulator(scene, rad.Band.IR)
+        scene.accumulate_exchange(faces, settings)
+        summed = rad.aggregate_matrix(faces.result().factors, node_numbers)
+
+        nodes = rad.NodeExchangeAccumulator(scene, rad.Band.IR, node_numbers)
+        scene.accumulate_exchange(nodes, settings)
+        result = nodes.result()
+
+        assert list(result.nodes) == [10, 11, 20]
+        assert result.factors.shape == (3, 3 + rad.num_node_virtual_columns)
+        couplings = result.factors.toarray()[:, :3]
+        expected = _densify(summed.matrix)
+        assert expected[0, 2] > 0.0
+        np.testing.assert_allclose(couplings, expected, rtol=2e-6, atol=1e-12)
+        assert result.intra_node_total == pytest.approx(
+            summed.intra_node_total, rel=2e-6, abs=1e-12
+        )
+        assert result.stats.rays_per_face == 4096
+
+
+def _build_facing_panels_model():
+    """Two unit panels half a unit apart, facing each other."""
+    model = gmm.GeometryModel("facing_panels")
+    corners = (
+        ([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, 0.5], [0.0, 1.0, 0.5], [1.0, 0.0, 0.5]),
+    )
+    for name, (p1, p2, p3) in zip(("panel_a", "panel_b"), corners):
+        tmesh = gmm.ThermalMesh()
+        tmesh.radiative_active_side = gmm.ActiveSide.BOTH
+        tmesh.side1_optical = gmm.OpticalMaterial("grey", 0.6, 0.6)
+        tmesh.side2_optical = gmm.OpticalMaterial("grey", 0.6, 0.6)
+        rectangle = gmm.Rectangle(np.array(p1), np.array(p2), np.array(p3))
+        model.add(gmm.GeometryItem(name, rectangle, tmesh))
+    model.create_mesh()
+    return model
+
 
 @pytest.mark.skipif(
     _RAYTRACER_DISABLED,
