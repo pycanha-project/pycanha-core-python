@@ -67,6 +67,13 @@ inline void CouplingMatrices_b(nb::module_ &m) {
                                                self.sparse_db.cols());
                    },
                    "Total number of nodes in the matrices.")
+      .def_prop_ro("structure_version", &CouplingMatrices::structure_version,
+                   "Changes whenever a coupling is inserted or removed, or the "
+                   "stored couplings move for a new node order; a bulk call "
+                   "changes it once. A new value for an existing coupling leaves "
+                   "it unchanged. Solvers compare it with the value seen by "
+                   "initialize(), because their patterns and index tables are "
+                   "built from the stored entries.")
       .def("add_ovw_coupling_from_node_idxs",
            &CouplingMatrices::add_ovw_coupling_from_node_idxs, "idx1"_a,
            "idx2"_a, "value"_a,

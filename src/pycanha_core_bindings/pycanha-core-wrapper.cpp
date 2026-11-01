@@ -30,6 +30,7 @@
 #include "bindings/tmm/thermalmathematicalmodel.hpp"
 #include "bindings/tmm/thermalnetwork.hpp"
 #include "bindings/utils/logger.hpp"
+#include "pycanha-core/config.hpp"
 #include "pycanha-core/utils/package_info.hpp"
 
 namespace nb = nanobind;
@@ -152,4 +153,9 @@ NB_MODULE(pycanha_core, m) {
 
   m.def("print_package_info", &print_package_info,
         "Print build and dependency information.");
+
+  // From the configuration header of the pycanha-core package this module is
+  // built against, so they describe the library it is linked with.
+  m.attr("MKL_ENABLED") = pycanha::MKL_ENABLED;
+  m.attr("ACCELERATE_ENABLED") = pycanha::ACCELERATE_ENABLED;
 }

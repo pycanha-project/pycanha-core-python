@@ -13,7 +13,12 @@ class TestThermalModel:
         assert tm.gmm is tm.gmm
         assert tm.solvers is tm.solvers
         assert tm.callbacks is tm.callbacks
-        assert tm.solvers.sslu is tm.solvers.sslu
+        assert tm.solvers.steady.steady_state is tm.solvers.steady.steady_state
+        assert tm.solvers.transient.crank_nicolson is tm.solvers.transient.crank_nicolson
+        assert (
+            tm.solvers.sensitivity.jacobian_propagation
+            is tm.solvers.sensitivity.jacobian_propagation
+        )
 
         tm.parameters.add_parameter("k", 10.0)
         assert tm.tmm.parameters.get_parameter("k") == pytest.approx(10.0)

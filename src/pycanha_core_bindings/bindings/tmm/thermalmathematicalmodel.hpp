@@ -155,10 +155,10 @@ inline void register_thermal_model(nb::module_ &m) {
   using pycanha::CallbackRegistry;
   using pycanha::Formulas;
   using pycanha::Parameters;
-  using pycanha::SolverRegistry;
   using pycanha::ThermalData;
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalModel;
+  using pycanha::solvers::SolverRegistry;
   using pycanha::gmm::GeometryModel;
 
   nb::class_<ThermalModel>(
@@ -245,12 +245,12 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
   using pycanha::Nodes;
   using pycanha::Parameters;
   using pycanha::RadiativeCouplings;
-  using pycanha::SolverRegistry;
   using pycanha::TemperatureVariable;
   using pycanha::ThermalData;
   using pycanha::ThermalMathematicalModel;
   using pycanha::ThermalNetwork;
   using pycanha::TimeVariable;
+  using pycanha::solvers::SolverRegistry;
 
   using PairFlowMethod =
       double (ThermalMathematicalModel::*)(pycanha::Index, pycanha::Index);
@@ -362,6 +362,10 @@ inline void register_thermal_mathematical_model(nb::module_ &m) {
           },
           nb::rv_policy::reference_internal,
           "Reference to the associated SolverRegistry.")
+      .def("structure_versions", &ThermalMathematicalModel::structure_versions,
+           "Structure versions of the nodes and of the conductive and radiative "
+           "couplings (see StructureVersions). Solvers compare them with the "
+           "snapshot taken by initialize().")
       .def_prop_ro(
           "entities",
           [](ThermalMathematicalModel &self) -> EntitiesHelper & {

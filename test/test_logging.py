@@ -311,7 +311,7 @@ class TestLoggingBridge:
         self, log_settings, caplog, basic_tmm
     ):
         log.set_record_level(log.LogLevel.INFO)
-        solver = pcc.solvers.SSLU(basic_tmm)
+        solver = pcc.solvers.steady.SteadyState(basic_tmm)
         solver.initialize()
         with caplog.at_level(logging.INFO, logger="pycanha"):
             log.write(log.LogLevel.INFO, "queued before the solve")

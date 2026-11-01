@@ -12,6 +12,17 @@ Utilities
 
 .. autofunction:: print_package_info
 
+.. autodata:: MKL_ENABLED
+
+   Whether the extension is built with Intel MKL (the PARDISO and LAPACK
+   solver backends).
+
+.. autodata:: ACCELERATE_ENABLED
+
+   Whether the extension is built with Apple Accelerate (the ACCELERATE solver
+   backend, which also needs macOS 15.5 or newer: see
+   :func:`pycanha_core.solvers.accelerate_available`).
+
 Convenience exports
 -------------------
 

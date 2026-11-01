@@ -315,7 +315,7 @@ class TestNumbersOutsideInt32:
 
 class TestStructureSync:
     def test_container_path_needs_no_radiative_workaround(self):
-        """Nodes added through tmm.nodes and conduction only: SSLU sizes the radiative blocks."""
+        """Nodes added through tmm.nodes and conduction only: the solver sizes the radiative blocks."""
         model = tmm.ThermalMathematicalModel("container")
         for number in (1, 2):
             node = tmm.Node(number)
@@ -329,10 +329,10 @@ class TestStructureSync:
         model.add_conductive_coupling(1, 2, 1.0)
         model.add_conductive_coupling(2, 3, 1.0)
 
-        solver = pcc.solvers.SSLU(model)
+        solver = pcc.solvers.steady.SteadyState(model)
         solver.initialize()
         solver.solve()
-        assert solver.solver_converged
+        assert solver.converged
         assert model.nodes.get_T(1) == pytest.approx(302.0)
 
     def test_solver_refuses_a_model_changed_after_initialize(self):
@@ -343,11 +343,12 @@ class TestStructureSync:
         model.add_conductive_couplings(
             np.array([1, 2], dtype=np.int32), np.array([2, 3], dtype=np.int32), np.array([1.0, 1.0])
         )
-        solver = pcc.solvers.SSLU(model)
+        solver = pcc.solvers.steady.SteadyState(model)
         solver.initialize()
         model.add_nodes(np.array([4], dtype=np.int32), C=np.array([1.0]))
-        solver.solve()
-        assert not solver.solver_converged
+        with pytest.raises(pcc.solvers.ModelChangedError):
+            solver.solve()
+        assert not solver.converged
         assert model.nodes.get_T(1) == 5.0
 
     def test_nodes_inserted_mid_block_keep_their_couplings(self):

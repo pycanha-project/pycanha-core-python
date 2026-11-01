@@ -1,0 +1,52 @@
+# stubtest allowlist: differences between the nanobind runtime and its
+# generated stubs that are not errors. One regular expression per line,
+# matched against the full name of the object stubtest reports.
+
+# Every bound class is created by nanobind's metaclass (nanobind.nb_type),
+# which the stubs do not declare.
+pycanha_core(\.[a-z_]+)+(\.[A-Z][a-z][A-Za-z0-9]*)+
+pycanha_core\.tmm\.ESATANReader
+
+# Module-level functions are nanobind function objects, not Python functions:
+# their runtime signature is (*args, **kwargs), so only the stub carries it.
+pycanha_core(\.[a-z_]+)*\.[a-z][a-z0-9_]*
+
+# Static methods are nanobind function objects too, stored on the class
+# without a staticmethod wrapper.
+pycanha_core\.gmm\.Color\.get_rgb_from_color_palette
+pycanha_core\.gmm\.CoordinateTransformation\.from_euler
+pycanha_core\.gmm\.CoordinateTransformation\.from_rotation
+pycanha_core\.gmm\.CoordinateTransformation\.from_translation
+pycanha_core\.parameters\.Entity\.albedo_heat
+pycanha_core\.parameters\.Entity\.c
+pycanha_core\.parameters\.Entity\.capacity
+pycanha_core\.parameters\.Entity\.conductive
+pycanha_core\.parameters\.Entity\.earth_ir
+pycanha_core\.parameters\.Entity\.from_internal_symbol
+pycanha_core\.parameters\.Entity\.from_string
+pycanha_core\.parameters\.Entity\.gl
+pycanha_core\.parameters\.Entity\.gr
+pycanha_core\.parameters\.Entity\.internal_heat
+pycanha_core\.parameters\.Entity\.make
+pycanha_core\.parameters\.Entity\.other_heat
+pycanha_core\.parameters\.Entity\.qa
+pycanha_core\.parameters\.Entity\.qe
+pycanha_core\.parameters\.Entity\.qi
+pycanha_core\.parameters\.Entity\.qr
+pycanha_core\.parameters\.Entity\.qs
+pycanha_core\.parameters\.Entity\.radiative
+pycanha_core\.parameters\.Entity\.solar_heat
+pycanha_core\.parameters\.Entity\.t
+pycanha_core\.parameters\.Entity\.temperature
+pycanha_core\.radiative\.Device\.create
+pycanha_core\.solvers\.Settings\.from_dict
+
+# A class without a bound constructor gets nanobind's __init__, which takes
+# (*args, **kwargs) and refuses every call; its stub declares none.
+pycanha_core(\.[a-z_]+)+(\.[A-Z][A-Za-z0-9]*)+\.__init__
+
+# Internal attribute of nanobind enums.
+pycanha_core(\.[a-z_]+)+(\.[A-Z][A-Za-z0-9]*)+\.__nb_enum__
+
+# Set at import by the package bootstrap (__init__.py), not by the extension.
+pycanha_core\.__all__

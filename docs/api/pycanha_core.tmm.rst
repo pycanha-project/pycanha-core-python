@@ -121,6 +121,9 @@ Thermal data
 Network and model
 -----------------
 
+.. autoclass:: StructureVersions
+   :members:
+
 .. autoclass:: ThermalNetwork
    :members:
    :special-members: __init__

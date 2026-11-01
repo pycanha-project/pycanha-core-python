@@ -16,6 +16,7 @@
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
 
+#include "bindings/utils/value_eq.hpp"
 #include "pycanha-core/parameters/entity.hpp"
 #include "pycanha-core/parameters/formula.hpp"
 #include "pycanha-core/parameters/formulas.hpp"
@@ -146,13 +147,15 @@ inline void register_entities(nb::module_ &m) {
       .value("GR", EntityType::gr, "Radiative coupling")
       .export_values();
 
-  nb::class_<Entity>(
+  nb::class_<Entity> entity(
       m, "Entity",
       "Reference to a value in the thermal network.\n\n"
       "An Entity points to a specific node attribute (T, C, QI, etc.)\n"
       "or coupling value (GL, GR) in a ThermalNetwork. Use the static\n"
       "factory methods (Entity.make, Entity.t, Entity.gl, etc.) or\n"
-      "Entity.from_string to create instances.")
+      "Entity.from_string to create instances.");
+  utils::def_value_eq<Entity>(entity);
+  entity
       // ── Static factory methods ──────────────────────────────────────
       .def_static("make", &Entity::make, "network"_a, "type"_a,
                   "node_1"_a = Entity::invalid_node,
@@ -246,7 +249,6 @@ inline void register_entities(nb::module_ &m) {
             return reinterpret_cast<std::uintptr_t>(self.get_value_ref());
           },
           "Memory address of the referenced value for formula binding.")
-      .def("__eq__", &Entity::operator==, "other"_a)
       .def("__repr__", [](const Entity &self) {
         return "<Entity " + self.string_representation() + ">";
       });
@@ -467,10 +469,6 @@ inline void register_formulas(nb::module_ &m) {
            static_cast<void (Formulas::*)(const Formula &)>(
                &Formulas::add_formula),
            "formula"_a, "Add a formula (by copy) to the collection.")
-      .def("add_formula",
-           static_cast<void (Formulas::*)(const std::shared_ptr<Formula> &)>(
-               &Formulas::add_formula),
-           "formula"_a, "Add a formula (by shared pointer) to the collection.")
       .def("remove_formula",
            static_cast<bool (Formulas::*)(const Entity &) noexcept>(
                &Formulas::remove_formula),

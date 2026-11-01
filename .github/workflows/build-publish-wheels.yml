@@ -14,7 +14,7 @@ jobs:
       fail-fast: False
       matrix:
         os: [ubuntu, macos]
-        python-version: [3.13, 3.14]
+        python-version: [3.13, 3.14, 3.15]
 
     name: ${{ matrix.os }} with Python ${{ matrix.python-version }} built and tests
     # Match pycanha-core's CI runners: ubuntu-26.04 / macos-26 (windows uses its own job).
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -50,7 +50,7 @@ jobs:
           echo "CXX=clang++" >> "$GITHUB_ENV"
 
       - name: Check out pycanha-core-python repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: pycanha-project/pycanha-core-python
 
@@ -66,7 +66,7 @@ jobs:
         id: metadata
 
       - name: Check out pycanha-core repo at version
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
@@ -154,6 +154,26 @@ jobs:
         run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
 
+      # The stubs and py.typed of the installed wheel: mypy, with no
+      # configuration, must find the package typed and resolve names from the
+      # nested submodules.
+      - name: Type-check the installed package
+        run: cd pycanha-project/pycanha-core-python && python -m mypy --config-file= test/stubs/probe.py
+        shell: bash
+
+      # The generated stubs against the runtime module. Non-blocking until the
+      # allowlist of nanobind artefacts has proven stable.
+      - name: Compare stubs with the runtime (stubtest)
+        if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
+        continue-on-error: true
+        run: |
+          cd pycanha-project/pycanha-core-python
+          python -m mypy.stubtest pycanha_core \
+            --mypy-config-file test/stubs/stubtest.ini \
+            --allowlist test/stubs/stubtest_allowlist.txt \
+            --ignore-disjoint-bases
+        shell: bash
+
       - name: Build wheels
         run: |
           cd pycanha-project/pycanha-core-python
@@ -233,25 +253,27 @@ jobs:
           mkdir -p stubs
           for whl in dist/*.whl; do
             python -c "
-          import zipfile, sys, shutil
+          import os, zipfile, sys, shutil
           with zipfile.ZipFile(sys.argv[1]) as z:
               for name in z.namelist():
                   if name.startswith('pycanha_core/') and (name.endswith('.pyi') or name.endswith('py.typed')):
                       target = 'stubs/' + name.split('/', 1)[1]
+                      os.makedirs(os.path.dirname(target), exist_ok=True)
                       with z.open(name) as src, open(target, 'wb') as dst:
                           shutil.copyfileobj(src, dst)
           " "$whl"
             break  # only need one wheel
           done
           echo "Extracted stubs:"
-          ls -la stubs/
+          find stubs -type f | sort
         shell: bash
 
       - name: Validate extracted stubs
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
         run: |
           cd pycanha-project/pycanha-core-python/stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi log.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers/__init__.pyi solvers/steady.pyi \
+                   solvers/transient.pyi solvers/sensitivity.pyi radiative.pyi conduction.pyi log.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -260,19 +282,19 @@ jobs:
 
       - name: Upload stubs artifact
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: generated-stubs
           path: pycanha-project/pycanha-core-python/stubs/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pycanha-dist-files-${{ matrix.os }}-${{ matrix.python-version }}
           path: pycanha-project/pycanha-core-python/dist/*.whl
 
       - name: Upload sdist
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pycanha-dist-files-sdist
           path: pycanha-project/pycanha-core-python/dist/*.tar.gz
@@ -282,7 +304,7 @@ jobs:
     strategy:
       fail-fast: False
       matrix:
-        python-version: [3.13, 3.14]
+        python-version: [3.13, 3.14, 3.15]
 
     name: windows with Python ${{ matrix.python-version }} built and tests
     # Match pycanha-core's CI runner (Visual Studio 2026 / MSVC v195).
@@ -291,7 +313,7 @@ jobs:
 
     steps:
       - name: Setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -306,7 +328,7 @@ jobs:
         shell: bash
 
       - name: Check out pycanha-core-python repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: pycanha-project/pycanha-core-python
 
@@ -322,7 +344,7 @@ jobs:
         id: metadata
 
       - name: Check out pycanha-core repo at version
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: pycanha-project/pycanha-core
           path: pycanha-project/pycanha-core
@@ -349,7 +371,7 @@ jobs:
         shell: python
 
       - name: Download pregenerated stubs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: generated-stubs
           path: pycanha-project/pycanha-core-python/pregenerated-stubs
@@ -357,7 +379,8 @@ jobs:
       - name: Validate pregenerated stubs
         run: |
           cd pycanha-project/pycanha-core-python/pregenerated-stubs
-          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers.pyi radiative.pyi conduction.pyi log.pyi; do
+          for f in __init__.pyi gmm.pyi tmm.pyi parameters.pyi solvers/__init__.pyi solvers/steady.pyi \
+                   solvers/transient.pyi solvers/sensitivity.pyi radiative.pyi conduction.pyi log.pyi; do
             test -s "$f" || { echo "Missing or empty: $f"; exit 1; }
           done
           test -f py.typed || { echo "Missing: py.typed"; exit 1; }
@@ -413,7 +436,7 @@ jobs:
           fi
 
           PROFILE="pycanha-project/pycanha-core-python/src/pycanha_core_bindings/pycanha-core-conan-profile"
-          conan install --requires=vulkan-loader/1.4.350.0 --build=missing \
+          conan install --requires=vulkan-loader/1.4.357.0 --build=missing \
             -pr:h="$PROFILE" -pr:b="$PROFILE" \
             --deployer=direct_deploy --deployer-folder=vulkan-loader
           LOADER_DIR="$(pwd)/vulkan-loader/direct_deploy/vulkan-loader/bin"
@@ -468,6 +491,13 @@ jobs:
         run: cd pycanha-project/pycanha-core-python && pytest
         shell: bash
 
+      # The stubs and py.typed of the installed wheel: mypy, with no
+      # configuration, must find the package typed and resolve names from the
+      # nested submodules.
+      - name: Type-check the installed package
+        run: cd pycanha-project/pycanha-core-python && python -m mypy --config-file= test/stubs/probe.py
+        shell: bash
+
       - name: Build wheels
         run: |
           cd pycanha-project/pycanha-core-python
@@ -478,7 +508,7 @@ jobs:
             -Ccmake.define.PYCANHA_PREGENERATED_STUBS_DIR="$STUBS_DIR"
         shell: bash
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pycanha-dist-files-windows-${{ matrix.python-version }}
           path: pycanha-project/pycanha-core-python/dist/*.whl
@@ -494,7 +524,7 @@ jobs:
       id-token: write
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: pycanha-dist-files*
           path: dist

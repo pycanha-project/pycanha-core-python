@@ -93,13 +93,25 @@ else()
         DEPENDS pycanha_core
     )
 
+    # solvers has submodules, so its stubs are a package directory:
+    # solvers/__init__.pyi plus one file per submodule.
     nanobind_add_stub(
         pycanha_core_solvers_stub
         MODULE pycanha_core.solvers
-        OUTPUT "${STUB_DIR}/solvers.pyi"
+        OUTPUT "${STUB_DIR}/solvers/__init__.pyi"
         PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
         DEPENDS pycanha_core
     )
+
+    foreach(SOLVERS_SUBMODULE IN ITEMS steady transient sensitivity)
+        nanobind_add_stub(
+            pycanha_core_solvers_${SOLVERS_SUBMODULE}_stub
+            MODULE pycanha_core.solvers.${SOLVERS_SUBMODULE}
+            OUTPUT "${STUB_DIR}/solvers/${SOLVERS_SUBMODULE}.pyi"
+            PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
+            DEPENDS pycanha_core
+        )
+    endforeach()
 
     nanobind_add_stub(
         pycanha_core_radiative_stub

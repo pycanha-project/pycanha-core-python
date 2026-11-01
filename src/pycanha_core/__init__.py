@@ -15,6 +15,7 @@ import sys
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from types import ModuleType
 from typing import List
 
 _RTLD_GLOBAL = getattr(ctypes, "RTLD_GLOBAL", 0)
@@ -149,9 +150,29 @@ _EXTENSION.__dict__.setdefault(
         "ExtrapolationMethod",
         "DataModelAttribute",
         "LogLevel",
+        "MKL_ENABLED",
+        "ACCELERATE_ENABLED",
         "print_package_info",
     ],
 )
 _EXTENSION.__path__ = [str(Path(__file__).resolve().parent)]
+
+
+def _register_submodules(module: ModuleType, name: str) -> None:
+    """Make every submodule importable under its public dotted name.
+
+    The extension's submodules are attributes registered in ``sys.modules``
+    under the extension's own name (``pycanha_core.pycanha_core.solvers``), so
+    ``import pycanha_core.solvers.transient`` or ``from pycanha_core.tmm import
+    Node`` would not find them without these entries.
+    """
+    for attribute, value in vars(module).items():
+        if isinstance(value, ModuleType) and value.__name__.startswith(module.__name__ + "."):
+            full_name = f"{name}.{attribute}"
+            sys.modules[full_name] = value
+            _register_submodules(value, full_name)
+
+
+_register_submodules(_EXTENSION, __name__)
 
 sys.modules[__name__] = _EXTENSION

@@ -7,6 +7,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "bindings/tmm/bulk.hpp"
+#include "bindings/utils/value_eq.hpp"
 #include "pycanha-core/tmm/bulk.hpp"
 #include "pycanha-core/tmm/node.hpp"
 #include "pycanha-core/tmm/thermalnetwork.hpp"
@@ -18,9 +19,26 @@ using pycanha::ConductiveCouplings;
 using pycanha::Node;
 using pycanha::Nodes;
 using pycanha::RadiativeCouplings;
+using pycanha::StructureVersions;
 using pycanha::ThermalNetwork;
 
 namespace pycanha::bindings::tmm {
+
+inline void StructureVersions_b(nb::module_ &m) {
+  nb::class_<StructureVersions> cls(
+      m, "StructureVersions",
+      "Structure versions of the three parts of a network: the nodes (see "
+      "Nodes.structure_version) and the conductive and radiative coupling "
+      "patterns (see CouplingMatrices.structure_version). Two equal snapshots "
+      "of one network mean the same nodes in the same order and the same "
+      "stored couplings; values may differ.");
+  cls.def_ro("nodes", &StructureVersions::nodes, "Structure version of the nodes.")
+      .def_ro("conductive", &StructureVersions::conductive,
+              "Structure version of the conductive coupling pattern.")
+      .def_ro("radiative", &StructureVersions::radiative,
+              "Structure version of the radiative coupling pattern.");
+  utils::def_value_eq<StructureVersions>(cls);
+}
 
 inline void ThermalNetwork_b(nb::module_ &m) {
   using PairFlowMethod =
@@ -64,6 +82,9 @@ inline void ThermalNetwork_b(nb::module_ &m) {
           },
           nb::rv_policy::reference_internal,
           "Reference to the RadiativeCouplings container.")
+      .def("structure_versions", &ThermalNetwork::structure_versions,
+           "Snapshot of the structure versions of the nodes and both coupling "
+           "containers.")
       .def("flow_conductive",
            static_cast<PairFlowMethod>(&ThermalNetwork::flow_conductive),
            "node_num_1"_a, "node_num_2"_a,
@@ -90,6 +111,9 @@ inline void ThermalNetwork_b(nb::module_ &m) {
   });
 }
 
-inline void register_thermalnetwork(nb::module_ &m) { ThermalNetwork_b(m); }
+inline void register_thermalnetwork(nb::module_ &m) {
+  StructureVersions_b(m);
+  ThermalNetwork_b(m);
+}
 
 } // namespace pycanha::bindings::tmm

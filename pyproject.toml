@@ -1,12 +1,14 @@
 [build-system]
-requires = ["scikit-build-core>=0.12", "nanobind>=2.12", "numpy>=2.4.0"]
+requires = ["scikit-build-core>=1.1", "nanobind>=3.1", "numpy>=2.4.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "pycanha-core"
-version = "0.23.0"
+version = "0.24.0"
 description = "Python bindings for pycanha-core with nanobind"
 readme = "README.md"
+license = "MIT AND BSD-3-Clause AND Apache-2.0 AND MPL-2.0 AND BSL-1.0 AND Zlib"
+license-files = ["LICENSE", "LICENSES/**/*"]
 authors = [{ name = "Javier Piqueras Carreño", email = "javier.piqueras@upm.es" }]
 requires-python = ">=3.13"
 classifiers = [
@@ -15,11 +17,12 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     'numpy>=2.4.0',
     'scipy>=1.14',
-    'mkl==2025.3.1; platform_system != "Darwin"',
+    'mkl==2026.2.0; platform_system != "Darwin"',
 ]
 
 [project.urls]
@@ -27,7 +30,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/pycanha-project/pycanha-core-python/issues"
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "mypy"]
 build = ["build"]
 docs = [
     "sphinx>=7.2",
@@ -37,7 +40,7 @@ docs = [
     "numpy>=1.26",
 ]
 
-mkl = ["mkl==2025.3.1"]
+mkl = ["mkl==2026.2.0"]
 
 [tool.scikit-build]
 cmake.version = ">=3.25"
