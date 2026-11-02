@@ -96,6 +96,13 @@ class TestValueTypes:
         s.normal_emission = False
         assert s.normal_emission is False
 
+    def test_trace_settings_robust_offset(self):
+        assert rad.TraceSettings().robust_offset is False
+        s = rad.TraceSettings(rays_per_face=64, robust_offset=True)
+        assert s.robust_offset is True
+        s.robust_offset = False
+        assert s.robust_offset is False
+
     def test_solar_state(self):
         sun = rad.SolarState(np.array([0.0, 0.0, -1.0]), 1361.0)
         np.testing.assert_allclose(np.asarray(sun.direction), [0.0, 0.0, -1.0])

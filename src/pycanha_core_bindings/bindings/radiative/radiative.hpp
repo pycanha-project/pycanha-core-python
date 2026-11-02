@@ -211,13 +211,16 @@ inline void register_radiative(nb::module_& m) {
           "__init__",
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
-             std::uint32_t max_bounces, bool normal_emission) {
-            new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces, normal_emission};
+             std::uint32_t max_bounces, bool normal_emission,
+             bool robust_offset) {
+            new (self) rad::TraceSettings{rays_per_face,    seed,
+                                          energy_threshold, max_bounces,
+                                          normal_emission,  robust_offset};
           },
           "rays_per_face"_a = 10'000, "seed"_a = 0,
           "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "normal_emission"_a = false, "Build trace settings.")
+          "normal_emission"_a = false, "robust_offset"_a = false,
+          "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
@@ -228,7 +231,11 @@ inline void register_radiative(nb::module_& m) {
               "Hard safety bound on the bounce loop.")
       .def_rw("normal_emission", &rad::TraceSettings::normal_emission,
               "Emit along the face normal instead of the cosine-weighted "
-              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).");
+              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).")
+      .def_rw("robust_offset", &rad::TraceSettings::robust_offset,
+              "Rays leave surfaces by a few float ULPs of the point (about "
+              "15 um at 1 m) instead of 1e-4 of the scene diagonal, which "
+              "leaks past sub-millimetre features.");
 
   // Before AccumConfig: it appears there as a default argument value, and
   // nanobind converts a default to Python when the signature is defined rather
