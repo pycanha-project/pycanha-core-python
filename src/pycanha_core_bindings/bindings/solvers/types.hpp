@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include <Eigen/Core>
+#include <nanobind/eigen/dense.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
@@ -31,6 +33,7 @@ constexpr const char *output_model_doc =
 
 inline void register_steady(nb::module_ &m) {
   using pycanha::ThermalMathematicalModel;
+  using pycanha::bindings::utils::LogDrainGuard;
   using pycanha::solvers::Solver;
   using pycanha::solvers::SolverType;
   using pycanha::solvers::steady::SteadyState;
@@ -62,7 +65,45 @@ inline void register_steady(nb::module_ &m) {
       .def_prop_ro("num_factorizations", &SteadyState::num_factorizations,
                    "Numerical factorizations done by the last solve().")
       .def_prop_ro("iterations", &SteadyState::iterations,
-                   "Iterations done by the last solve().");
+                   "Iterations done by the last solve().")
+      .def("jacobian", &SteadyState::jacobian, nb::call_guard<LogDrainGuard>(),
+           "Derivatives of the diffusive temperatures of the last solve() with "
+           "respect to the parameters selected in "
+           "Formulas.parameters_with_derivatives [K per unit of the parameter]: "
+           "one row per diffusive node, in the model's order, and one column "
+           "per derivative_parameter_names entry.\n\n"
+           "The network is linearized at the converged temperatures, which "
+           "gives the exact tangent of the energy balance, factorized once, and "
+           "solved for the change of the balance each parameter makes through "
+           "the entities of its parameter formulas: conductive and radiative "
+           "couplings, the heat loads (QI, QS, QA, QE, QR) and the temperatures "
+           "of boundary nodes. Capacities, and the temperatures of diffusive "
+           "nodes (a start value), do not enter a steady state. A coupling that "
+           "a callback sets from the temperatures is taken at its converged "
+           "value: its own temperature dependence is not in the tangent.\n\n"
+           "Raises RuntimeError when the solver is not initialized or the last "
+           "solve() did not converge, and ValueError when no derivative "
+           "parameter is selected or a selected one enters no parameter "
+           "formula.")
+      .def_prop_ro("derivative_parameter_names",
+                   &SteadyState::derivative_parameter_names,
+                   "The parameters of the columns of the last jacobian().")
+      .def(
+          "linear_response",
+          [](SteadyState &self, const Eigen::VectorXd &heat) -> Eigen::VectorXd {
+            return self.linear_response(heat).col(0);
+          },
+          "heat"_a, nb::call_guard<LogDrainGuard>(),
+          "First-order change of the diffusive temperatures [K] for heat [W] "
+          "added to the diffusive nodes, at the temperatures of the last "
+          "solve(): `heat` and the result have one entry per diffusive node, in "
+          "the model's order (a 2-D `heat` gives one column per load case). The "
+          "same factorization as jacobian(), one solve per column. Raises as "
+          "jacobian(), and ValueError for a length other than the number of "
+          "diffusive nodes.")
+      .def("linear_response", &SteadyState::linear_response, "heat"_a,
+           nb::call_guard<LogDrainGuard>(),
+           "One column of temperature changes per column of `heat`.");
   add_setting_attributes(cls, SolverType::STEADY_STATE);
 }
 
