@@ -3,9 +3,11 @@
 The kernel end-to-ends (view factors, exchange, solar) run on EVERY platform
 where the raytracer is built (hardware GPU or software lavapipe) and are
 expected to succeed — a missing or broken device is a real failure, not a skip.
-The only exception is macOS, where the raytracer is compiled out until the Metal
-backend lands; there the whole GPU-dependent class is skipped (and
-``is_available()`` returns False).
+The only exception is a macOS host without a ray-tracing-capable Metal GPU (the
+backend needs GPU family Apple9, e.g. M3/M4). GitHub's macOS runners are VMs
+whose paravirtual GPU is Apple5 and there is no software Metal driver like
+lavapipe, so there the GPU-dependent classes are skipped (and
+``is_available()`` returns False). On an Apple9 Mac they run and must pass.
 
 The Gebhart and aggregation services are pure CPU and are tested everywhere.
 
@@ -23,13 +25,13 @@ from scipy.sparse import csr_matrix
 
 import pycanha_core as pcc
 
-# macOS builds force PYCANHA_OPTION_RAYTRACING off (no Metal backend yet), so the
-# radiative device is genuinely absent there. Everywhere else the raytracer is
-# built and must work.
-_RAYTRACER_DISABLED = platform.system() == "Darwin"
-
 rad = pcc.radiative
 gmm = pcc.gmm
+
+# macOS VMs (CI runners) expose no ray-tracing-capable Metal GPU, so the
+# raytracer is built but has no device there. Everywhere else, including Apple9
+# Macs, a device must exist and the end-to-ends must work.
+_NO_METAL_RT_DEVICE = platform.system() == "Darwin" and not rad.is_available()
 
 
 def _densify(sparse):
@@ -415,12 +417,13 @@ class TestGmmRadiativeEntryPoints:
 
 
 @pytest.mark.skipif(
-    _RAYTRACER_DISABLED,
-    reason="raytracing is compiled out on macOS until the Metal backend lands",
+    _NO_METAL_RT_DEVICE,
+    reason="no ray-tracing-capable Metal GPU (needs Apple9; macOS CI VMs are Apple5)",
 )
 class TestViewFactorEndToEnd:
     def test_device_available(self):
-        # On every non-macOS platform a device (hardware or lavapipe) must exist.
+        # Off macOS a device (hardware or lavapipe) must exist; on macOS this
+        # class only runs when an Apple9 GPU is present.
         assert rad.is_available()
 
     def test_device_and_scene(self):
@@ -522,8 +525,8 @@ class TestViewFactorEndToEnd:
 
 
 @pytest.mark.skipif(
-    _RAYTRACER_DISABLED,
-    reason="raytracing is compiled out on macOS until the Metal backend lands",
+    _NO_METAL_RT_DEVICE,
+    reason="no ray-tracing-capable Metal GPU (needs Apple9; macOS CI VMs are Apple5)",
 )
 class TestExchangeEndToEnd:
     def test_isolated_panel_sends_everything_to_space(self):
@@ -576,8 +579,8 @@ class TestExchangeEndToEnd:
 
 
 @pytest.mark.skipif(
-    _RAYTRACER_DISABLED,
-    reason="raytracing is compiled out on macOS until the Metal backend lands",
+    _NO_METAL_RT_DEVICE,
+    reason="no ray-tracing-capable Metal GPU (needs Apple9; macOS CI VMs are Apple5)",
 )
 class TestSolarEndToEnd:
     def test_normal_incidence_cosine_law(self):
