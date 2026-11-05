@@ -215,9 +215,14 @@ inline void register_radiative(nb::module_& m) {
             new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
                                           max_bounces, normal_emission};
           },
-          "rays_per_face"_a = 10'000, "seed"_a = 0,
-          "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "normal_emission"_a = false, "Build trace settings.")
+          // The keyword defaults are the core's, so TraceSettings(seed=1)
+          // and TraceSettings() differ only in the seed.
+          "rays_per_face"_a = rad::TraceSettings{}.rays_per_face,
+          "seed"_a = rad::TraceSettings{}.seed,
+          "energy_threshold"_a = rad::TraceSettings{}.energy_threshold,
+          "max_bounces"_a = rad::TraceSettings{}.max_bounces,
+          "normal_emission"_a = rad::TraceSettings{}.normal_emission,
+          "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
