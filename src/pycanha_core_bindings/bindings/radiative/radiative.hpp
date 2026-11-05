@@ -202,6 +202,9 @@ inline void register_radiative(nb::module_& m) {
               "snapshot).");
 
   // ---- settings -----------------------------------------------------------
+  // nanobind converts each keyword default to Python when the signature is
+  // defined, so a local is enough to feed them.
+  const rad::TraceSettings trace_defaults{};
   nb::class_<rad::TraceSettings>(
       m, "TraceSettings",
       "Monte-Carlo trace control. Accuracy is caller-driven: re-invoke the "
@@ -212,16 +215,21 @@ inline void register_radiative(nb::module_& m) {
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
              std::uint32_t max_bounces, bool normal_emission) {
-            new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces, normal_emission};
+            // By field name: seed and max_bounces are both uint32_t, so a
+            // reorder of the core struct must fail to compile, not swap them.
+            new (self) rad::TraceSettings{.rays_per_face = rays_per_face,
+                                          .seed = seed,
+                                          .energy_threshold = energy_threshold,
+                                          .max_bounces = max_bounces,
+                                          .normal_emission = normal_emission};
           },
           // The keyword defaults are the core's, so TraceSettings(seed=1)
           // and TraceSettings() differ only in the seed.
-          "rays_per_face"_a = rad::TraceSettings{}.rays_per_face,
-          "seed"_a = rad::TraceSettings{}.seed,
-          "energy_threshold"_a = rad::TraceSettings{}.energy_threshold,
-          "max_bounces"_a = rad::TraceSettings{}.max_bounces,
-          "normal_emission"_a = rad::TraceSettings{}.normal_emission,
+          "rays_per_face"_a = trace_defaults.rays_per_face,
+          "seed"_a = trace_defaults.seed,
+          "energy_threshold"_a = trace_defaults.energy_threshold,
+          "max_bounces"_a = trace_defaults.max_bounces,
+          "normal_emission"_a = trace_defaults.normal_emission,
           "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
