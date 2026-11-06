@@ -93,6 +93,11 @@ Scene and accumulators
    :special-members: __init__
    :exclude-members: __dict__, __weakref__, __module__
 
+.. autoclass:: NodeExchangeAccumulator
+   :members:
+   :special-members: __init__
+   :exclude-members: __dict__, __weakref__, __module__
+
 .. autoclass:: SolarAccumulator
    :members:
    :special-members: __init__
@@ -118,6 +123,10 @@ columns.
    :members:
    :exclude-members: __dict__, __weakref__, __module__
 
+.. autoclass:: NodeExchangeResult
+   :members:
+   :exclude-members: __dict__, __weakref__, __module__
+
 .. autoclass:: SolarResult
    :members:
    :exclude-members: __dict__, __weakref__, __module__
@@ -130,6 +139,7 @@ Memory sizing
    :exclude-members: __dict__, __weakref__, __module__
 
 .. autofunction:: estimate_memory
+.. autofunction:: estimate_node_memory
 
 Gebhart services (CPU)
 ----------------------

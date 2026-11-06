@@ -45,6 +45,10 @@ inline void register_radiative(nb::module_& m) {
   m.attr("space_column_offset") = rad::space_column_offset;
   m.attr("inactive_column_offset") = rad::inactive_column_offset;
   m.attr("lost_column_offset") = rad::lost_column_offset;
+  // NodeExchangeResult: the three above at the same offsets after the node
+  // columns, then the energy that landed on faces in no node.
+  m.attr("num_node_virtual_columns") = rad::num_node_virtual_columns;
+  m.attr("unassigned_column_offset") = rad::unassigned_column_offset;
 
   // ---- enums --------------------------------------------------------------
   nb::enum_<rad::PartKind>(m, "PartKind",
@@ -386,6 +390,41 @@ inline void register_radiative(nb::module_& m) {
           },
           nb::rv_policy::reference_internal, "TraceStats for this result.");
 
+  nb::class_<rad::NodeExchangeResult>(
+      m, "NodeExchangeResult",
+      "The exchange result summed to nodes while it was traced "
+      "(NodeExchangeAccumulator).")
+      .def_ro("band", &rad::NodeExchangeResult::band,
+              "The band the factors were traced for.")
+      .def_prop_ro(
+          "nodes",
+          [](const rad::NodeExchangeResult& r) {
+            return Eigen::VectorXi(Eigen::Map<const Eigen::VectorXi>(
+                r.nodes.data(), static_cast<Eigen::Index>(r.nodes.size())));
+          },
+          "Node numbers labelling the rows and node columns: "
+          "aggregate_nodes(node_numbers).")
+      .def_prop_ro(
+          "factors",
+          [](const rad::NodeExchangeResult& r) { return r.factors; },
+          "scipy.sparse.csr_matrix, n x (n + num_node_virtual_columns): the "
+          "UPPER TRIANGLE of the node couplings H_mn (m^2), ExchangeResult's H "
+          "summed over the face pairs of each node pair - what "
+          "aggregate_matrix makes of the face result, up to float rounding - "
+          "without the node diagonal; then per node its space, inactive, lost "
+          "and unassigned columns.")
+      .def_ro("intra_node_total", &rad::NodeExchangeResult::intra_node_total,
+              "Total left out on the node diagonal (faces of one node), as "
+              "AggregateResult reports it.")
+      .def_prop_ro(
+          "stats",
+          [](const rad::NodeExchangeResult& r) -> const rad::TraceStats& {
+            return r.stats;
+          },
+          nb::rv_policy::reference_internal,
+          "TraceStats for this result (no per-entry standard errors or "
+          "reciprocity residual: those are face-pair quantities).");
+
   nb::class_<rad::SolarResult>(
       m, "SolarResult",
       "Per-face absorbed solar power in WATTS (extensive): node mapping "
@@ -476,6 +515,20 @@ inline void register_radiative(nb::module_& m) {
           "(fixed at accumulator construction), ADDED into `acc`. Same "
           "emitter semantics as accumulate_vf. Releases the GIL.")
       .def(
+          "accumulate_exchange",
+          [](rad::RadiativeScene& self, rad::NodeExchangeAccumulator& acc,
+             const rad::TraceSettings& settings,
+             const std::vector<std::uint32_t>& emitters) {
+            self.accumulate_exchange(acc, settings,
+                                     std::span<const std::uint32_t>(emitters));
+          },
+          "acc"_a, "settings"_a, "emitters"_a = std::vector<std::uint32_t>{},
+          nb::call_guard<nb::gil_scoped_release,
+                         pycanha::bindings::utils::LogDrainGuard>(),
+          "The same trace summed to nodes as it goes, ADDED into a "
+          "NodeExchangeAccumulator. Emitters in no node are skipped; every "
+          "batch must name the same emitters. Releases the GIL.")
+      .def(
           "accumulate_solar",
           [](rad::RadiativeScene& self, const rad::SolarState& sun,
              rad::SolarAccumulator& acc, const rad::TraceSettings& settings) {
@@ -549,6 +602,37 @@ inline void register_radiative(nb::module_& m) {
            "fixed-point units. Zero by construction, so a nonzero value means "
            "a broken kernel, not Monte-Carlo noise.");
 
+  nb::class_<rad::NodeExchangeAccumulator>(
+      m, "NodeExchangeAccumulator",
+      "Exchange factors summed to nodes while they are traced: node x node "
+      "cells on the GPU instead of face x face, so memory follows the node "
+      "pairs and does not grow with the rays. The result is the face result "
+      "summed by aggregate_matrix, up to float rounding. Every batch must "
+      "trace the same emitters with the same rays for each; TriangulationMode "
+      "None or RayDensity; keep_full_matrix off. Vulkan only.")
+      .def(
+          "__init__",
+          [](rad::NodeExchangeAccumulator* self,
+             const rad::RadiativeScene& scene, rad::Band band,
+             const Eigen::VectorXi& node_numbers, rad::AccumConfig config) {
+            new (self) rad::NodeExchangeAccumulator(
+                scene, band,
+                std::span<const NodeNum>(
+                    node_numbers.data(),
+                    static_cast<std::size_t>(node_numbers.size())),
+                config);
+          },
+          "scene"_a, "band"_a, "node_numbers"_a,
+          "config"_a = rad::AccumConfig{}, nb::keep_alive<1, 2>(),
+          "Allocate a node accumulator for `scene` in `band`. node_numbers: "
+          "one per scene face, -1 (NO_NODE) for a face in no node, as "
+          "aggregate_matrix takes them. Layout Dense (node x node on the "
+          "card) by default, or Tiled over node rows.")
+      .def("reset", &rad::NodeExchangeAccumulator::reset,
+           "Clear all accumulated energy and the emitter set.")
+      .def("result", &rad::NodeExchangeAccumulator::result,
+           "Read back + sum into a NodeExchangeResult (callable repeatedly).");
+
   nb::class_<rad::SolarAccumulator>(
       m, "SolarAccumulator",
       "Owns the per-face direct/total solar energy vectors (the solar "
@@ -569,6 +653,11 @@ inline void register_radiative(nb::module_& m) {
         "config"_a = rad::AccumConfig{},
         "Byte requirements of `config` on `scene`, so a run can fail fast "
         "with a clear message instead of exhausting device memory mid-trace.");
+  m.def("estimate_node_memory", &rad::estimate_node_memory, "scene"_a,
+        "num_nodes"_a, "config"_a = rad::AccumConfig{},
+        "The same for a NodeExchangeAccumulator over `num_nodes` nodes: its "
+        "rows are nodes and its row stride num_nodes + 1 + "
+        "num_virtual_columns.");
 
   // ---- CPU Gebhart services ----------------------------------------------
   // Both solves read the VF matrix in the form VfResult stores it: the upper
