@@ -16,6 +16,13 @@ an attribute for every setting that applies to its type, and only for those:
 ``crank_nicolson.time_step`` exists, ``steady_state.time_step`` is an
 ``AttributeError``. Unset settings (``None``) take the solver's default.
 
+After a converged ``solve()``, :meth:`steady.SteadyState.jacobian` gives the
+derivatives of the steady temperatures with respect to the parameters selected
+in ``Formulas.parameters_with_derivatives`` (the steady counterpart of the
+JAC attribute :class:`~sensitivity.JacobianPropagation` stores), and
+:meth:`steady.SteadyState.linear_response` the first-order temperature change
+for any added heat, both from one factorization at the converged temperatures.
+
 .. code-block:: python
 
    import pycanha_core as pcc
