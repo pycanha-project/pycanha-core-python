@@ -57,6 +57,15 @@ inline void register_radiative(nb::module_& m) {
       .value("IR", rad::Band::IR)
       .value("Solar", rad::Band::Solar);
 
+  nb::enum_<rad::Sampler>(
+      m, "Sampler",
+      "How each ray's emission point and direction are drawn.")
+      .value("Random", rad::Sampler::Random,
+             "Pseudo-random (PCG), the default.")
+      .value("Sobol", rad::Sampler::Sobol,
+             "Randomised quasi-Monte Carlo: a 4-D Owen-scrambled Sobol' "
+             "sequence per face; unbiased, faster convergence.");
+
   nb::enum_<rad::AccumLayout>(
       m, "AccumLayout",
       "Accumulator buffer layout. Both layouts yield bit-identical results for "
@@ -211,13 +220,15 @@ inline void register_radiative(nb::module_& m) {
           "__init__",
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
-             std::uint32_t max_bounces, bool normal_emission) {
+             std::uint32_t max_bounces, bool normal_emission,
+             rad::Sampler sampler) {
             new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces, normal_emission};
+                                          max_bounces, normal_emission, sampler};
           },
           "rays_per_face"_a = 10'000, "seed"_a = 0,
           "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "normal_emission"_a = false, "Build trace settings.")
+          "normal_emission"_a = false, "sampler"_a = rad::Sampler::Random,
+          "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
@@ -228,7 +239,9 @@ inline void register_radiative(nb::module_& m) {
               "Hard safety bound on the bounce loop.")
       .def_rw("normal_emission", &rad::TraceSettings::normal_emission,
               "Emit along the face normal instead of the cosine-weighted "
-              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).");
+              "hemisphere (the legacy `_Nodes` mode; vf/exchange only).")
+      .def_rw("sampler", &rad::TraceSettings::sampler,
+              "Emission sampling: Sampler.Random (default) or Sampler.Sobol.");
 
   // Before AccumConfig: it appears there as a default argument value, and
   // nanobind converts a default to Python when the signature is defined rather
