@@ -161,11 +161,10 @@ jobs:
         run: cd pycanha-project/pycanha-core-python && python -m mypy --config-file= test/stubs/probe.py
         shell: bash
 
-      # The generated stubs against the runtime module. Non-blocking until the
-      # allowlist of nanobind artefacts has proven stable.
+      # The generated stubs against the runtime module, on the job that
+      # generates them: a stub that drifts from the compiled module fails here.
       - name: Compare stubs with the runtime (stubtest)
         if: matrix.os == 'ubuntu' && matrix.python-version == '3.13'
-        continue-on-error: true
         run: |
           cd pycanha-project/pycanha-core-python
           python -m mypy.stubtest pycanha_core \
