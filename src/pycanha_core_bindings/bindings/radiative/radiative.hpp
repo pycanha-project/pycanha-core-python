@@ -608,7 +608,13 @@ inline void register_radiative(nb::module_& m) {
       "above that. `space_fraction_policy` decides what a row deficit means: "
       "1.0 a real view to space, 0.0 renormalize the row (closed enclosure). "
       "Note that renormalizing partly undoes the reciprocity the stored matrix "
-      "enforces; the two corrections pull against each other.");
+      "enforces; the two corrections pull against each other.\n\n"
+      "The solve assumes each face re-emits what it reflects uniformly over "
+      "its area, while accumulate_exchange re-emits from each hit point. On "
+      "faces that are large compared with how fast their irradiation varies, "
+      "the two differ by more than the ray noise. Refining the faces brings "
+      "this result to the trace; the nodes can stay the same "
+      "(node1_step = node2_step = 0).");
 
   m.def(
       "gebhart_node_factors",
@@ -629,7 +635,13 @@ inline void register_radiative(nb::module_& m) {
       "space_fraction_policy"_a = 1.0,
       "Node-level Gebhart GR matrix (m^2) for ANY model size: one sparse "
       "factorization plus one solve per node instead of a dense inverse. "
-      "Rows/cols are indexed by position in aggregate_nodes(node_numbers).");
+      "Rows/cols are indexed by position in aggregate_nodes(node_numbers).\n\n"
+      "The solve assumes each face re-emits what it reflects uniformly over "
+      "its area, while accumulate_exchange re-emits from each hit point. On "
+      "faces that are large compared with how fast their irradiation varies, "
+      "the two differ by more than the ray noise. Refining the faces brings "
+      "this result to the trace; the nodes can stay the same "
+      "(node1_step = node2_step = 0).");
 
   // ---- CPU aggregation services ------------------------------------------
   m.def(
