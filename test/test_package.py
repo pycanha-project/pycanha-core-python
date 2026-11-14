@@ -46,6 +46,12 @@ def test_build_constants_live_at_the_package_root():
     assert not hasattr(pcc.solvers, "MKL_ENABLED")
 
 
+def test_version_is_the_installed_distribution_version():
+    import importlib.metadata
+
+    assert pcc.__version__ == importlib.metadata.version("pycanha-core")
+
+
 def test_submodules_are_importable_by_name():
     import importlib
 

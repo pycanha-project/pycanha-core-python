@@ -1,0 +1,7 @@
+# Pattern file for nanobind's stub generator (nanobind_add_stub PATTERN_FILE).
+#
+# The generator never writes __version__ (it is on its fixed skip list of
+# standard module attributes), so the root stub declares it here. The module
+# sets it in pycanha-core-wrapper.cpp.
+^pycanha_core\.__suffix__$:
+    __version__: str

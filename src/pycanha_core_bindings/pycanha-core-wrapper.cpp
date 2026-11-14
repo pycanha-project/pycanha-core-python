@@ -158,4 +158,6 @@ NB_MODULE(pycanha_core, m) {
   // built against, so they describe the library it is linked with.
   m.attr("MKL_ENABLED") = pycanha::MKL_ENABLED;
   m.attr("ACCELERATE_ENABLED") = pycanha::ACCELERATE_ENABLED;
+  // The pycanha-core distribution version, passed in from pyproject.toml.
+  m.attr("__version__") = PYCANHA_CORE_PYTHON_VERSION;
 }
