@@ -15,6 +15,7 @@ from .models import (
     RADIATIVE_FACTORIZATIONS,
     REUSE_CONFIGURATIONS,
     make_chain_tmm,
+    make_jacobian_tmm,
     requires_accelerate,
     temperatures,
 )
@@ -153,3 +154,100 @@ class TestAccelerate:
         assert conduction.uses_cholesky is True
         radiative = solve(basic_tmm, backend=solvers.Backend.ACCELERATE)
         assert radiative.uses_cholesky is False
+
+
+# Parameters of the basic network: an internal conductive coupling, an
+# internal and a boundary radiative coupling, a heat load, the boundary
+# temperature, and one parameter in two entities.
+DERIVATIVE_FORMULAS = {
+    "g": (0.1, [("GL(10,15)", "g")]),
+    "r": (0.2, [("GR(15,25)", "r")]),
+    "rb": (1.0, [("GR(10,99)", "rb")]),
+    "q": (500.0, [("QI15", "q")]),
+    "tb": (150.0, [("T99", "tb")]),
+    "s": (1.0, [("GL(20,25)", "0.1 * s * s"), ("QI20", "20 * s")]),
+}
+
+
+def make_parametric_tmm(basic_tmm):
+    for name, (value, formulas) in DERIVATIVE_FORMULAS.items():
+        basic_tmm.parameters.add_parameter(name, value)
+        for entity, expression in formulas:
+            basic_tmm.formulas.add_parameter_formula(entity, expression)
+        basic_tmm.formulas.parameters_with_derivatives.add_parameter(name)
+    basic_tmm.formulas.apply_formulas()
+    return basic_tmm
+
+
+def solve_tightly(model):
+    solver = SteadyState(model)
+    solver.set_settings(solvers.Settings(tolerance=1e-11, max_iterations=200))
+    solver.initialize()
+    solver.solve()
+    return solver
+
+
+class TestDerivatives:
+    def test_one_link_is_exact(self):
+        # T1 = Tb + Q / k = 2: dT1/dk = -Q / k^2 = -1, and C does not enter.
+        model = make_jacobian_tmm()
+        solver = solve(model)
+        jacobian = solver.jacobian()
+        assert jacobian.shape == (1, 2)
+        assert solver.derivative_parameter_names == ["k", "C"]
+        np.testing.assert_allclose(jacobian, [[-1.0, 0.0]], atol=1e-12)
+
+    def test_matches_central_differences(self, basic_tmm):
+        model = make_parametric_tmm(basic_tmm)
+        solver = solve_tightly(model)
+        jacobian = solver.jacobian()
+        assert solver.derivative_parameter_names == list(DERIVATIVE_FORMULAS)
+
+        differences = np.zeros_like(jacobian)
+        for column, (name, (value, _)) in enumerate(DERIVATIVE_FORMULAS.items()):
+            step = 1e-4 * value
+            sides = []
+            for sign in (1.0, -1.0):
+                model.parameters.set_parameter(name, value + sign * step)
+                model.formulas.apply_formulas()
+                solver.solve()
+                assert solver.converged
+                sides.append(temperatures(model, BASIC_DIFFUSIVE))
+            model.parameters.set_parameter(name, value)
+            model.formulas.apply_formulas()
+            differences[:, column] = (sides[0] - sides[1]) / (2.0 * step)
+        scale = np.abs(differences).max(axis=0)
+        assert np.all(np.abs(jacobian - differences).max(axis=0) < 1e-6 * scale)
+
+    def test_linear_response_is_the_jacobian_of_a_load(self, basic_tmm):
+        model = make_parametric_tmm(basic_tmm)
+        solver = solve_tightly(model)
+        jacobian = solver.jacobian()
+        heat = np.zeros(4)
+        heat[BASIC_DIFFUSIVE.index(15)] = 1.0
+        response = solver.linear_response(heat)
+        assert response.shape == (4,)
+        np.testing.assert_allclose(response, jacobian[:, 3], rtol=1e-12, atol=0)
+        cases = solver.linear_response(np.column_stack([heat, -2.5 * heat]))
+        assert cases.shape == (4, 2)
+        np.testing.assert_allclose(cases[:, 1], -2.5 * response, rtol=1e-12, atol=0)
+        with pytest.raises(ValueError):
+            solver.linear_response(np.zeros(5))
+
+    def test_needs_a_converged_solve_and_a_parameter(self, basic_tmm):
+        model = make_parametric_tmm(basic_tmm)
+        solver = SteadyState(model)
+        with pytest.raises(RuntimeError):
+            solver.jacobian()
+        solver.set_settings(solvers.Settings(tolerance=1e-11, max_iterations=1))
+        solver.initialize()
+        solver.solve()
+        assert not solver.converged
+        with pytest.raises(RuntimeError):
+            solver.jacobian()
+        solver.deinitialize()
+        solver = solve(model)
+        for name in DERIVATIVE_FORMULAS:
+            model.formulas.parameters_with_derivatives.remove_parameter(name)
+        with pytest.raises(ValueError):
+            solver.jacobian()
