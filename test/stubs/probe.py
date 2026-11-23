@@ -23,5 +23,6 @@ def probe() -> None:
     report: SolverReport = steady.report()
     jacobian: type[JacobianPropagation] = pycanha_core.solvers.sensitivity.JacobianPropagation
     mkl: bool = pycanha_core.MKL_ENABLED
+    version: str = pycanha_core.__version__
     nested: type[CrankNicolson] = pycanha_core.solvers.transient.CrankNicolson
-    print(time_step, report.converged, jacobian, mkl, nested)
+    print(time_step, report.converged, jacobian, mkl, version, nested)

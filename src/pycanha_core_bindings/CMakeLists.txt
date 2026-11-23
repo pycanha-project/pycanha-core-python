@@ -22,6 +22,19 @@ nanobind_add_module(pycanha_core MODULE
 
 target_link_libraries(pycanha_core PRIVATE pycanha-core::pycanha-core)
 
+# pycanha_core.__version__: the distribution version from pyproject.toml, as
+# scikit-build-core passes it (the full string, pre-release and local parts
+# included), so the attribute always equals the installed version.
+if(NOT DEFINED SKBUILD_PROJECT_VERSION_FULL)
+    message(FATAL_ERROR
+        "SKBUILD_PROJECT_VERSION_FULL is not set. Build through "
+        "scikit-build-core (pip install / python -m build), which passes the "
+        "version from pyproject.toml.")
+endif()
+target_compile_definitions(pycanha_core PRIVATE
+    PYCANHA_CORE_PYTHON_VERSION="${SKBUILD_PROJECT_VERSION_FULL}"
+)
+
 # So that one binding header can include another by its "bindings/<area>/..."
 # path. Without it only the wrapper, which sits in this directory, can use that
 # spelling: GCC resolves a quoted include against the including file's own
@@ -67,6 +80,7 @@ else()
         PYTHON_PATH "$<TARGET_FILE_DIR:pycanha_core>"
         DEPENDS pycanha_core
         MARKER_FILE "${STUB_DIR}/py.typed"
+        PATTERN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/stubgen_patterns.txt"
     )
 
     nanobind_add_stub(

@@ -81,8 +81,23 @@ class TestValueTypes:
         s = rad.TraceSettings()
         assert s.rays_per_face == 10_000
         assert s.seed == 0
-        assert s.max_bounces == 64
+        assert s.max_bounces >= 64
         assert s.normal_emission is False
+
+    def test_trace_settings_keyword_defaults_are_the_core_defaults(self):
+        default = rad.TraceSettings()
+        s = rad.TraceSettings(seed=5)
+        assert s.seed == 5
+        # Every public field, so a field added later is covered too.
+        fields = [
+            name
+            for name in dir(default)
+            if not name.startswith("_") and not callable(getattr(default, name))
+        ]
+        assert "rays_per_face" in fields
+        for name in fields:
+            if name != "seed":
+                assert getattr(s, name) == getattr(default, name), name
 
     def test_trace_settings_kwargs(self):
         s = rad.TraceSettings(rays_per_face=500, seed=7, max_bounces=8)

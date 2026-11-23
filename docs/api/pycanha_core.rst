@@ -12,6 +12,10 @@ Utilities
 
 .. autofunction:: print_package_info
 
+.. autodata:: __version__
+
+   The installed ``pycanha-core`` distribution version, e.g. ``"0.24.0"``.
+
 .. autodata:: MKL_ENABLED
 
    Whether the extension is built with Intel MKL (the PARDISO and LAPACK

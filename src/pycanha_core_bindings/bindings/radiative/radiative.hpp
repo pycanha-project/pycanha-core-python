@@ -202,6 +202,9 @@ inline void register_radiative(nb::module_& m) {
               "snapshot).");
 
   // ---- settings -----------------------------------------------------------
+  // nanobind converts each keyword default to Python when the signature is
+  // defined, so a local is enough to feed them.
+  const rad::TraceSettings trace_defaults{};
   nb::class_<rad::TraceSettings>(
       m, "TraceSettings",
       "Monte-Carlo trace control. Accuracy is caller-driven: re-invoke the "
@@ -212,12 +215,22 @@ inline void register_radiative(nb::module_& m) {
           [](rad::TraceSettings* self, std::uint64_t rays_per_face,
              std::uint32_t seed, float energy_threshold,
              std::uint32_t max_bounces, bool normal_emission) {
-            new (self) rad::TraceSettings{rays_per_face, seed, energy_threshold,
-                                          max_bounces, normal_emission};
+            // By field name: seed and max_bounces are both uint32_t, so a
+            // reorder of the core struct must fail to compile, not swap them.
+            new (self) rad::TraceSettings{.rays_per_face = rays_per_face,
+                                          .seed = seed,
+                                          .energy_threshold = energy_threshold,
+                                          .max_bounces = max_bounces,
+                                          .normal_emission = normal_emission};
           },
-          "rays_per_face"_a = 10'000, "seed"_a = 0,
-          "energy_threshold"_a = 1e-4F, "max_bounces"_a = 64,
-          "normal_emission"_a = false, "Build trace settings.")
+          // The keyword defaults are the core's, so TraceSettings(seed=1)
+          // and TraceSettings() differ only in the seed.
+          "rays_per_face"_a = trace_defaults.rays_per_face,
+          "seed"_a = trace_defaults.seed,
+          "energy_threshold"_a = trace_defaults.energy_threshold,
+          "max_bounces"_a = trace_defaults.max_bounces,
+          "normal_emission"_a = trace_defaults.normal_emission,
+          "Build trace settings.")
       .def_rw("rays_per_face", &rad::TraceSettings::rays_per_face,
               "Rays per emitting face, per accumulate() call.")
       .def_rw("seed", &rad::TraceSettings::seed,
@@ -595,7 +608,13 @@ inline void register_radiative(nb::module_& m) {
       "above that. `space_fraction_policy` decides what a row deficit means: "
       "1.0 a real view to space, 0.0 renormalize the row (closed enclosure). "
       "Note that renormalizing partly undoes the reciprocity the stored matrix "
-      "enforces; the two corrections pull against each other.");
+      "enforces; the two corrections pull against each other.\n\n"
+      "The solve assumes each face re-emits what it reflects uniformly over "
+      "its area, while accumulate_exchange re-emits from each hit point. On "
+      "faces that are large compared with how fast their irradiation varies, "
+      "the two differ by more than the ray noise. Refining the faces brings "
+      "this result to the trace; the nodes can stay the same "
+      "(node1_step = node2_step = 0).");
 
   m.def(
       "gebhart_node_factors",
@@ -616,7 +635,13 @@ inline void register_radiative(nb::module_& m) {
       "space_fraction_policy"_a = 1.0,
       "Node-level Gebhart GR matrix (m^2) for ANY model size: one sparse "
       "factorization plus one solve per node instead of a dense inverse. "
-      "Rows/cols are indexed by position in aggregate_nodes(node_numbers).");
+      "Rows/cols are indexed by position in aggregate_nodes(node_numbers).\n\n"
+      "The solve assumes each face re-emits what it reflects uniformly over "
+      "its area, while accumulate_exchange re-emits from each hit point. On "
+      "faces that are large compared with how fast their irradiation varies, "
+      "the two differ by more than the ray noise. Refining the faces brings "
+      "this result to the trace; the nodes can stay the same "
+      "(node1_step = node2_step = 0).");
 
   // ---- CPU aggregation services ------------------------------------------
   m.def(
